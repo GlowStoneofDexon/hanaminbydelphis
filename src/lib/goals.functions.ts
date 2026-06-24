@@ -49,9 +49,10 @@ export const bumpGoal = createServerFn({ method: "POST" })
     const { data: g } = await context.supabase
       .from("goals").select("current_amount, target_amount").eq("id", data.id).single();
     const next = Math.max(0, Number(g?.current_amount ?? 0) + data.delta);
+    const target = Number(g?.target_amount ?? 0);
     await context.supabase.from("goals").update({
       current_amount: next,
-      completed: g && next >= Number(g.target_amount) && Number(g.target_amount) > 0,
+      completed: target > 0 && next >= target,
     }).eq("id", data.id);
     return { ok: true };
   });
