@@ -18,6 +18,7 @@ import { Route as AuthenticatedInventoryRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticated/finance'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
+import { Route as AuthenticatedFinanceReinvestmentRouteImport } from './routes/_authenticated/finance.reinvestment'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -63,26 +64,34 @@ const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFinanceReinvestmentRoute =
+  AuthenticatedFinanceReinvestmentRouteImport.update({
+    id: '/reinvestment',
+    path: '/reinvestment',
+    getParentRoute: () => AuthenticatedFinanceRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/finance': typeof AuthenticatedFinanceRoute
+  '/finance': typeof AuthenticatedFinanceRouteWithChildren
   '/inventory': typeof AuthenticatedInventoryRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/finance/reinvestment': typeof AuthenticatedFinanceReinvestmentRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/finance': typeof AuthenticatedFinanceRoute
+  '/finance': typeof AuthenticatedFinanceRouteWithChildren
   '/inventory': typeof AuthenticatedInventoryRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/finance/reinvestment': typeof AuthenticatedFinanceReinvestmentRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -91,10 +100,11 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/finance': typeof AuthenticatedFinanceRoute
+  '/_authenticated/finance': typeof AuthenticatedFinanceRouteWithChildren
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
+  '/_authenticated/finance/reinvestment': typeof AuthenticatedFinanceReinvestmentRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/orders'
     | '/products'
+    | '/finance/reinvestment'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/orders'
     | '/products'
+    | '/finance/reinvestment'
   id:
     | '__root__'
     | '/'
@@ -128,6 +140,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inventory'
     | '/_authenticated/orders'
     | '/_authenticated/products'
+    | '/_authenticated/finance/reinvestment'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,13 +214,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCustomersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/finance/reinvestment': {
+      id: '/_authenticated/finance/reinvestment'
+      path: '/reinvestment'
+      fullPath: '/finance/reinvestment'
+      preLoaderRoute: typeof AuthenticatedFinanceReinvestmentRouteImport
+      parentRoute: typeof AuthenticatedFinanceRoute
+    }
   }
 }
+
+interface AuthenticatedFinanceRouteChildren {
+  AuthenticatedFinanceReinvestmentRoute: typeof AuthenticatedFinanceReinvestmentRoute
+}
+
+const AuthenticatedFinanceRouteChildren: AuthenticatedFinanceRouteChildren = {
+  AuthenticatedFinanceReinvestmentRoute: AuthenticatedFinanceReinvestmentRoute,
+}
+
+const AuthenticatedFinanceRouteWithChildren =
+  AuthenticatedFinanceRoute._addFileChildren(AuthenticatedFinanceRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedFinanceRoute: typeof AuthenticatedFinanceRoute
+  AuthenticatedFinanceRoute: typeof AuthenticatedFinanceRouteWithChildren
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
   AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
@@ -216,7 +247,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedFinanceRoute: AuthenticatedFinanceRoute,
+  AuthenticatedFinanceRoute: AuthenticatedFinanceRouteWithChildren,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
   AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
