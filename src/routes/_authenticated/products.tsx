@@ -71,6 +71,7 @@ function ProductsPage() {
         </div>
       )}
       <ProductSheet open={open} onOpenChange={setOpen} editing={editing} />
+      <QuickAddSheet open={quickOpen} onOpenChange={setQuickOpen} />
     </AppShell>
   );
 }
