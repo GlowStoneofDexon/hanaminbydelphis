@@ -32,9 +32,14 @@ function ProductsPage() {
       title="Products"
       subtitle="Your catalog"
       right={
-        <Button size="sm" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
-          <Plus className="h-4 w-4" /> New
-        </Button>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => setQuickOpen(true)}>
+            <Sparkles className="h-4 w-4" /> AI
+          </Button>
+          <Button size="sm" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
+            <Plus className="h-4 w-4" /> New
+          </Button>
+        </div>
       }
     >
       {data.length === 0 ? (
