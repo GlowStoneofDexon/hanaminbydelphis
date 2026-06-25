@@ -25,6 +25,7 @@ function ProductsPage() {
   const { data } = useSuspenseQuery({ queryKey: ["products"], queryFn: () => fn() });
   const [editing, setEditing] = useState<ProductWithCost | null>(null);
   const [open, setOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   return (
     <AppShell
