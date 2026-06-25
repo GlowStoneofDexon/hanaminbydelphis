@@ -436,6 +436,7 @@ export type Database = {
           category: string | null
           created_at: string
           current_stock: number
+          description: string | null
           id: string
           labor_cost: number
           name: string
@@ -450,6 +451,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           current_stock?: number
+          description?: string | null
           id?: string
           labor_cost?: number
           name: string
@@ -464,6 +466,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           current_stock?: number
+          description?: string | null
           id?: string
           labor_cost?: number
           name?: string

@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listProducts, upsertProduct, deleteProduct, type ProductWithCost } from "@/lib/products.functions";
 import { listMaterials } from "@/lib/inventory.functions";
 import { formatBDT } from "@/lib/format";
-import { Plus, Package, Trash2 } from "lucide-react";
+import { Plus, Package, Trash2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { QuickAddSheet } from "@/components/products/QuickAddSheet";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Products — Hanami" }] }),
@@ -24,15 +25,21 @@ function ProductsPage() {
   const { data } = useSuspenseQuery({ queryKey: ["products"], queryFn: () => fn() });
   const [editing, setEditing] = useState<ProductWithCost | null>(null);
   const [open, setOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   return (
     <AppShell
       title="Products"
       subtitle="Your catalog"
       right={
-        <Button size="sm" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
-          <Plus className="h-4 w-4" /> New
-        </Button>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => setQuickOpen(true)}>
+            <Sparkles className="h-4 w-4" /> AI
+          </Button>
+          <Button size="sm" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
+            <Plus className="h-4 w-4" /> New
+          </Button>
+        </div>
       }
     >
       {data.length === 0 ? (
@@ -64,6 +71,7 @@ function ProductsPage() {
         </div>
       )}
       <ProductSheet open={open} onOpenChange={setOpen} editing={editing} />
+      <QuickAddSheet open={quickOpen} onOpenChange={setQuickOpen} />
     </AppShell>
   );
 }
