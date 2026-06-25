@@ -36,15 +36,27 @@ export const quickCreateProduct = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("AI is not configured");
 
-    const sys = `You convert short Bangla/English shop notes into a product JSON for a resin-craft business in Bangladesh. Currency is BDT (taka). Extract:
-- name (string, infer something readable; fix typos like "Earing"->"Earring", "resi"->"resin", "nickles"->"nickel")
-- category (string|null) — e.g. Earrings, Pendant, Keychain
-- selling_price (number, taka)
-- current_stock (integer)
-- labor_cost, overhead_cost (numbers, default 0)
-- description (1-2 sentence helpful blurb generated from the note, mentioning materials used)
-- materials: array of { name, unit (g|ml|pcs), qty_per_unit, cost_per_unit }. Each material's cost_per_unit is total cost / qty_per_unit when the note says "X tk of Y" (assume that cost is what goes INTO ONE unit unless clearly otherwise). Unit defaults to "pcs" if unclear; resin/color/hardener use "g" or "ml".
-Return STRICT JSON only matching the schema, no prose.`;
+    const sys = `You are an extraction engine for a Bangladeshi resin-craft business tracker. The user pastes ONE free-form note about a product in ANY style — full sentences, fragments, slang, emoji, gen-z ("af", "brrr", "stonks", "sus", "wallet crying"), pipe/CSV ("Bookmark | 100pcs | 499tk"), key:value ("SKU:", "Qty:", "Product:"), Bangla, Banglish, typos, sarcasm, complaints, questions, or extremely vague input ("I have bookmarks."). You MUST always return a valid product JSON — never refuse, never ask questions, never error.
+
+CURRENCY: BDT taka. Accept "tk", "Tk", "TK", "৳", "taka", "BDT", "/-", or a bare number near price/cost/sell/ship words.
+
+FIELDS (infer aggressively; use safe defaults when missing):
+- name (string, REQUIRED): the product noun. Fix typos ("peices"->"pieces", "Earing"->"Earring", "resi"->"resin", "nickles"->"nickel", "bookmark"/"bookmarks"->"Bookmark"). Singularize and Title Case. If only a material is named, use "<Material> Product". If nothing identifiable, use "Untitled Product".
+- category (string|null): infer from the noun (Bookmark->"Bookmarks", Earring->"Earrings", Pendant->"Pendants", Keychain->"Keychains", Coaster->"Coasters"). Null if unclear.
+- selling_price (number): pull from "sell"/"selling"/"price"/"for X tk"/"@ X". If multiple numbers, the one labeled selling/price wins. Default 0.
+- current_stock (integer): pull from "X pcs"/"X pieces"/"X units"/"stock"/"inventory"/"have X"/"got X"/"made X"/"batch of X"/"x100"/"×100"/"100pcs"/"hundred". Default 0.
+- labor_cost (number): "labor"/"making"/"to make" when separate from materials. Default 0.
+- overhead_cost (number): "shipping"/"ship"/"delivery"/"courier"/"packaging"/"overhead". Sum if multiple. Default 0.
+- description (string): a friendly 1-2 sentence blurb that ALSO captures the user's sentiment, concern, or question (e.g. "Resin-based bookmark; the maker feels resin cost is high and is considering a new supplier."). Never null when the note has any context.
+- materials (array): every material mentioned. Each item: { name (lowercase canonical: "resin","hardener","dried flower","hook","jump ring","nickel","color","pigment","packaging","sticker","glitter"), unit ("g" for resin/hardener/color/pigment/glitter, "ml" for stated liquids, else "pcs"), qty_per_unit (per ONE product; default 1), cost_per_unit (cost going into ONE product; "resin 30tk each"->30, "resin 99tk"->99; default 0) }. If the note only says "made with resin" without cost, still include resin with cost 0. If no materials hinted at all, return [].
+
+ROBUSTNESS:
+- NEVER refuse, NEVER return an error, NEVER ask clarifying questions. Always output valid JSON matching the schema.
+- Vague input like "I have bookmarks." -> { name:"Bookmark", category:"Bookmarks", current_stock:0, selling_price:0, materials:[], description:"Bookmark product noted by the maker." }.
+- Slang/emoji/sarcasm/complaints/questions are valid — extract what you can and put the rest into description.
+- Pipe/CSV/key:value formats: parse field by field.
+- Profit numbers in the note are derived — do NOT store them as cost or price.
+- Output STRICT JSON only — no markdown, no prose, no code fences.`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
