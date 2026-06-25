@@ -2,27 +2,58 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const InputSchema = z.object({ text: z.string().min(3).max(1000) });
+const InputSchema = z.object({ text: z.string().min(2).max(2000) });
+
+// Coerce strings -> numbers, clamp negatives to 0, so the AI can't trip validation.
+const num = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined || v === "") return 0;
+    const n = typeof v === "string" ? parseFloat(v.replace(/[^\d.-]/g, "")) : Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  },
+  z.number().min(0),
+);
+const intNum = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined || v === "") return 0;
+    const n = typeof v === "string" ? parseInt(v.replace(/[^\d-]/g, ""), 10) : Math.floor(Number(v));
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  },
+  z.number().int().min(0),
+);
 
 const AiSchema = z.object({
-  name: z.string(),
-  category: z.string().nullable().optional(),
-  selling_price: z.number().min(0),
-  current_stock: z.number().int().min(0).default(0),
-  labor_cost: z.number().min(0).default(0),
-  overhead_cost: z.number().min(0).default(0),
-  description: z.string().nullable().optional(),
+  name: z.preprocess((v) => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s.length > 0 ? s : "Untitled Product";
+  }, z.string().min(1)),
+  category: z.preprocess((v) => (typeof v === "string" && v.trim() ? v.trim() : null), z.string().nullable()).optional(),
+  selling_price: num.default(0),
+  current_stock: intNum.default(0),
+  labor_cost: num.default(0),
+  overhead_cost: num.default(0),
+  description: z.preprocess((v) => (typeof v === "string" && v.trim() ? v.trim() : null), z.string().nullable()).optional(),
   materials: z
     .array(
       z.object({
-        name: z.string(),
-        unit: z.enum(["g", "ml", "pcs"]).default("pcs"),
-        qty_per_unit: z.number().min(0).default(1),
-        cost_per_unit: z.number().min(0).default(0),
+        name: z.preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() : ""), z.string().min(1)),
+        unit: z.preprocess(
+          (v) => {
+            const s = typeof v === "string" ? v.toLowerCase().trim() : "";
+            if (s === "g" || s === "gram" || s === "grams") return "g";
+            if (s === "ml" || s === "milliliter" || s === "millilitre") return "ml";
+            return "pcs";
+          },
+          z.enum(["g", "ml", "pcs"]),
+        ).default("pcs"),
+        qty_per_unit: num.default(1),
+        cost_per_unit: num.default(0),
       }),
     )
-    .default([]),
+    .default([])
+    .catch([]),
 });
+
 
 export type QuickAddResult = {
   product_id: string;
