@@ -183,44 +183,44 @@ function ProductSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle className="font-display">{editing ? "Edit product" : "New product"}</SheetTitle>
-          <SheetDescription>Recipe builds cost automatically.</SheetDescription>
+      <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-3xl p-4 pb-6">
+        <SheetHeader className="space-y-0.5">
+          <SheetTitle className="font-display text-base">{editing ? "Edit product" : "New product"}</SheetTitle>
+          <SheetDescription className="text-xs">Recipe builds cost automatically.</SheetDescription>
         </SheetHeader>
-        <div className="mt-4 space-y-3">
-          <div className="space-y-1.5">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rose pendant" />
+        <div className="mt-3 space-y-2.5">
+          <div className="space-y-1">
+            <Label className="text-xs">Name</Label>
+            <Input className="h-9" value={name} onChange={(e) => setName(e.target.value)} placeholder="Rose pendant" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Category</Label>
-              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Earrings" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Category</Label>
+              <Input className="h-9" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Earrings" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Photo URL</Label>
-              <Input value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder="https://…" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Selling price (৳)</Label>
-              <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Stock</Label>
-              <Input type="number" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
+            <div className="space-y-1">
+              <Label className="text-xs">Photo URL</Label>
+              <Input className="h-9" value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder="https://…" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Labor (৳)</Label>
-              <Input type="number" value={labor} onChange={(e) => setLabor(Number(e.target.value))} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Selling price (৳)</Label>
+              <Input className="h-9" type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
             </div>
-            <div className="space-y-1.5">
-              <Label>Overhead (৳)</Label>
-              <Input type="number" value={overhead} onChange={(e) => setOverhead(Number(e.target.value))} />
+            <div className="space-y-1">
+              <Label className="text-xs">Stock</Label>
+              <Input className="h-9" type="number" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Labor (৳)</Label>
+              <Input className="h-9" type="number" value={labor} onChange={(e) => setLabor(Number(e.target.value))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Overhead (৳)</Label>
+              <Input className="h-9" type="number" value={overhead} onChange={(e) => setOverhead(Number(e.target.value))} />
             </div>
           </div>
 
