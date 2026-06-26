@@ -63,51 +63,51 @@ function AuthPage() {
       <div className="pointer-events-none absolute -top-32 -left-20 h-72 w-72 rounded-full bg-dust/60 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-20 h-80 w-80 rounded-full bg-lavender/40 blur-3xl" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-6 py-10">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-5">
         <div>
           <div className="flex items-center gap-2 text-primary">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
-              <Sparkles className="h-5 w-5" />
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <Sparkles className="h-4 w-4" />
             </span>
-            <span className="font-display text-xl font-bold tracking-tight">Hanami</span>
+            <span className="font-display text-lg font-bold tracking-tight">Hanami</span>
           </div>
-          <h1 className="mt-10 font-display text-4xl font-black leading-tight">
+          <h1 className="mt-4 font-display text-2xl font-black leading-tight">
             Run your handmade business like a real one.
           </h1>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Track sales, costs, stock and profit — designed for resin makers and small shops.
           </p>
         </div>
 
-        <form onSubmit={submit} className="mt-10 card-soft p-6">
+        <form onSubmit={submit} className="mt-4 card-soft p-4">
           <Tabs value={mode} onValueChange={(v) => setMode(v as "in" | "up")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="in">Sign in</TabsTrigger>
               <TabsTrigger value="up">Create account</TabsTrigger>
             </TabsList>
-            <TabsContent value="up" className="mt-4 space-y-3">
-              <div className="space-y-1.5">
+            <TabsContent value="up" className="mt-3 space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="name">Your name</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Itsumi" />
               </div>
             </TabsContent>
-            <div className="mt-4 space-y-3">
-              <div className="space-y-1.5">
+            <div className="mt-3 space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
-              <Button type="submit" className="h-12 w-full rounded-2xl text-base" disabled={loading}>
+              <Button type="submit" className="h-11 w-full rounded-2xl text-base" disabled={loading}>
                 {loading ? "Working…" : mode === "in" ? "Sign in" : "Create account"}
               </Button>
             </div>
           </Tabs>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
+        <p className="mt-3 text-center text-[11px] text-muted-foreground">
           By continuing you agree to keep your business numbers private to your account.
         </p>
       </div>
