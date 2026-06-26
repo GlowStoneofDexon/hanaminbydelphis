@@ -16,9 +16,11 @@ const EXAMPLES = [
 export function QuickAddSheet({
   open,
   onOpenChange,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  onCreated?: (productId: string) => void;
 }) {
   const [text, setText] = useState("");
   const qc = useQueryClient();
@@ -27,34 +29,35 @@ export function QuickAddSheet({
   const create = useMutation({
     mutationFn: () => fn({ data: { text } }),
     onSuccess: (r) => {
-      toast.success(`Created "${r.parsed.name}"`, {
-        description: `${r.parsed.materials.length} materials linked.`,
+      toast.success(`Draft created — review & save`, {
+        description: `"${r.parsed.name}" · ${r.parsed.materials.length} materials linked.`,
       });
       qc.invalidateQueries();
       setText("");
       onOpenChange(false);
+      onCreated?.(r.product_id);
     },
     onError: (e: any) => toast.error(e?.message ?? "Could not create product"),
   });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl">
+      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="font-display flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" /> Quick add with AI
+            <Sparkles className="h-5 w-5 text-primary" /> Describe your product
           </SheetTitle>
           <SheetDescription>
-            Describe the product in one line — name, price, stock, materials. AI fills the rest.
+            One line — name, price, stock, materials. AI fills the rest, then you review.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-3">
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder='e.g. "Earring -150tk, 77 in stock. Resin 99tk, nickel 10tk, color 41tk"'
-            className="min-h-32 rounded-2xl text-base"
+            className="min-h-28 rounded-2xl text-base"
             autoFocus
           />
 
@@ -79,7 +82,7 @@ export function QuickAddSheet({
             onClick={() => create.mutate()}
           >
             <Sparkles className="h-4 w-4" />
-            {create.isPending ? "Thinking…" : "Create product"}
+            {create.isPending ? "Thinking…" : "Continue"}
           </Button>
         </div>
       </SheetContent>
