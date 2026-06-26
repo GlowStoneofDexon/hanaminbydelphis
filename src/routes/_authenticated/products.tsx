@@ -33,17 +33,17 @@ function ProductsPage() {
       subtitle="Your catalog"
       right={
         <div className="flex gap-1.5">
-          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => setQuickOpen(true)}>
-            <Sparkles className="h-4 w-4" /> AI
+          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
+            Manual
           </Button>
-          <Button size="sm" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
+          <Button size="sm" className="rounded-full" onClick={() => setQuickOpen(true)}>
             <Plus className="h-4 w-4" /> New
           </Button>
         </div>
       }
     >
       {data.length === 0 ? (
-        <EmptyState onAdd={() => { setEditing(null); setOpen(true); }} />
+        <EmptyState onAdd={() => setQuickOpen(true)} />
       ) : (
         <div className="grid gap-3">
           {data.map((p) => (
@@ -71,7 +71,14 @@ function ProductsPage() {
         </div>
       )}
       <ProductSheet open={open} onOpenChange={setOpen} editing={editing} />
-      <QuickAddSheet open={quickOpen} onOpenChange={setQuickOpen} />
+      <QuickAddSheet
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        onCreated={(id) => {
+          setEditing({ id } as ProductWithCost);
+          setOpen(true);
+        }}
+      />
     </AppShell>
   );
 }
