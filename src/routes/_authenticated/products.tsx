@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listProducts, upsertProduct, deleteProduct, type ProductWithCost } from "@/lib/products.functions";
 import { listMaterials } from "@/lib/inventory.functions";
 import { formatBDT } from "@/lib/format";
-import { Plus, Package, Trash2, Sparkles } from "lucide-react";
+import { Plus, Package, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { QuickAddSheet } from "@/components/products/QuickAddSheet";
 
