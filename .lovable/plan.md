@@ -1,125 +1,124 @@
-# Hanami by delphis — Resin Craft Business Tracker
+## Goal
 
-A mobile-first business dashboard for handmade resin sellers. Bento-grid home, blush + lavender palette, Outfit/Figtree type, ৳ BDT throughout. Built on TanStack Start + Lovable Cloud with email/password auth and per-user RLS.
+Replace the AI-text Quick Add with a guided survey flow, make recipes free-text, auto-calculate overhead from expenses, fix the "0" placeholder issue, and trim the product form.
 
-## Visual system
+---
 
-- Palette (locked): blush `#f8e8ee`, dusty pink `#e8c5d0`, lavender `#c9a0dc`, deep purple `#9b72cf`. Semantic: profit=emerald, expense=rose-600, low-stock=amber, info=lavender. Dark mode supported.
-- Type: Outfit (display/numbers, black weight for KPIs) + Figtree (body), self-hosted via `@fontsource`.
-- Shape language: `rounded-3xl` cards, soft shadows like cured resin, hairline dividers, generous whitespace.
-- Motion: count-up KPIs, staggered card fade-rise, chart line draw, FAB press-scale.
-- Layout: 390px-first; bottom nav pill (Dashboard, Products, Finance, Analytics, More) + center FAB "Record Sale". Desktop: same content centered in a max-width column.
+## 1. New product entry flow
 
-## Information architecture (routes)
+**Remove:** `QuickAddSheet.tsx` (AI text-to-record) and the `quickCreateProduct` server function — no longer needed.
 
+**New component:** `src/components/products/ProductSurveySheet.tsx`
+- One-question-at-a-time wizard, mobile-friendly, single large input per step.
+- Steps:
+  1. Name *(required)*
+  2. Selling price ৳ *(required)*
+  3. Stock *(skippable, default 0)*
+  4. Labor cost ৳ *(skippable)*
+  5. Category *(skippable)*
+  6. Materials/recipe — free-text rows: "name + cost" (skippable)
+  7. Overheads — multi-select chips from existing overhead pool (skippable)
+- Footer: **Back** / **Skip** / **Next** buttons; **Next** disabled on required steps until valid; final step **Continue** opens the existing product form prefilled with all answers for final review & save.
+- Progress dots at top. State held locally; user can navigate freely back/forward without losing answers.
+
+**Products page (`src/routes/_authenticated/products.tsx`) buttons:**
+- `+ New` → opens the survey (replaces current AI sheet trigger).
+- `Manual` → opens the product form directly (current behavior, unchanged).
+- Global floating `+` (in `AppShell`/`BottomNav` if it routes here) → also opens the survey.
+
+---
+
+## 2. Free-text recipe rows
+
+In the product form (`ProductSheet`), replace the `<Select>` material dropdown with two text inputs per row: **material name** and **cost per unit (৳)**. No more linking to the `materials` table from this form.
+
+**Data model:** add nullable columns to `product_recipe_items`:
+- `material_name text` (used when `material_id` is null)
+- `unit_cost_override numeric` (used when `material_id` is null)
+
+Make `material_id` nullable. Server-side cost calc (`computeUnitCost` in `products.functions.ts` and the batch version in `listProducts`) sums:
+`qty_per_unit * (materials.avg_unit_cost ?? unit_cost_override)` so existing material-linked rows keep working.
+
+Update `upsertProduct` `RecipeItemSchema` to accept either `{material_id, qty_per_unit}` or `{material_name, unit_cost_override, qty_per_unit:1}`.
+
+Existing Inventory page and material-purchase flow stay untouched — they remain the "proper" way for power users; survey/free-text is the fast path.
+
+---
+
+## 3. Auto-calculated overhead from expenses
+
+**Concept:** Each expense becomes a reusable overhead pool. By default, its cost is amortized across 50 uses (configurable per expense). When a product uses that overhead, `expense.amount / uses_total` is added to the product's overhead.
+
+**Migration:**
+- `expenses`: add `uses_total int default 50`, `is_overhead boolean default false`.
+- New table `product_overheads (product_id uuid, expense_id uuid, primary key (product_id, expense_id))` with RLS + GRANTs (authenticated CRUD, service_role all).
+
+**Expense form (`Finance` page):** add a checkbox "Use as product overhead" + numeric "Spread over N uses (default 50)".
+
+**Product form:** new section **Overheads used** — multi-select chips listing all `is_overhead = true` expenses; selecting them inserts/deletes rows in `product_overheads`.
+
+**Cost calc:** `unit_cost = materials + labor + manual_overhead + Σ(expense.amount / expense.uses_total for selected overheads)`. Update both `getProduct` and `listProducts`. Keep the existing manual `overhead_cost` field as a fallback/extra.
+
+**Survey step 7** lists these overhead expenses as toggleable chips.
+
+---
+
+## 4. Remove leading "0" in numeric inputs
+
+Across `ProductSheet`, `ProductSurveySheet`, expense forms, and any other numeric input bound to a `number` state initialized at `0`:
+- Switch state to `string` (`""` when empty), parse with `Number(v || 0)` on save.
+- Render `<Input type="number" value={v} placeholder="100" />` so the field shows a ghost placeholder (e.g. `100`, `15`, `250`) instead of a literal `0` — matching the "type your email…" pattern.
+- Apply to: selling price, stock, labor, overhead, recipe qty, material cost, expense amount, uses_total.
+
+---
+
+## 5. Smaller, smoother product form
+
+`ProductSheet` (`products.tsx`):
+- Cap height at `max-h-[70vh]`, add a visible drag handle bar at the top, make outer overlay tap-to-close (default Sheet behavior — ensure no `onInteractOutside preventDefault`).
+- Defer mounting the form body until `open` is true (`{open && <FormBody/>}`) so it doesn't render in the background — fixes lag.
+- Lazy-load the recipe section only after the basic fields are filled (collapse by default with a "Add recipe" toggle), reducing initial paint.
+- Replace the inline `useQuery` for full product data with `enabled: open && !!editing?.id` + `staleTime` and skip if survey already passed prefilled data via props.
+- Keep current spacing; only collapse the always-visible recipe block and remove the redundant 3-stat summary on small screens (move to a single line).
+
+---
+
+## Technical summary
+
+**Migration:**
+```sql
+ALTER TABLE public.product_recipe_items
+  ALTER COLUMN material_id DROP NOT NULL,
+  ADD COLUMN material_name text,
+  ADD COLUMN unit_cost_override numeric;
+
+ALTER TABLE public.expenses
+  ADD COLUMN uses_total int NOT NULL DEFAULT 50,
+  ADD COLUMN is_overhead boolean NOT NULL DEFAULT false;
+
+CREATE TABLE public.product_overheads (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  expense_id uuid NOT NULL REFERENCES public.expenses(id) ON DELETE CASCADE,
+  PRIMARY KEY (product_id, expense_id)
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_overheads TO authenticated;
+GRANT ALL ON public.product_overheads TO service_role;
+ALTER TABLE public.product_overheads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own rows" ON public.product_overheads
+  FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 ```
-/auth                           sign in / sign up
-/_authenticated/
-  index                         Dashboard (bento home)
-  products/                     list + detail + new
-  products/$id                  product detail (recipe, sales, reviews)
-  inventory                     materials with low-stock warnings
-  orders                        Kanban (New → Processing → Shipped → Delivered)
-  customers/                    cards + detail w/ lifetime value
-  customers/$id
-  finance                       revenue / expense / profit / reinvestment tabs
-  finance/reinvestment          money-flow timeline
-  analytics                     charts, top/worst products, AOV, heatmap
-  ai-insights                   rule-based insight cards (AI hooks later)
-  goals                         progress bars
-  feedback                      reviews list + add
-  more                          settings, suppliers, export, profile, sign out
-```
 
-Bottom nav: Dashboard, Products, Finance, Analytics, More. Other pages reached from More or from contextual links.
+**Server functions touched:**
+- `products.functions.ts` — schema accepts free-text recipe rows + overhead expense IDs; cost calc updated.
+- `finance.functions.ts` — `ExpenseSchema` gains `uses_total`, `is_overhead`; new `listOverheadExpenses`.
+- Delete `quick-add.functions.ts` and remove its router registration.
 
-## Database schema (Lovable Cloud)
+**Components touched/added:**
+- ✚ `ProductSurveySheet.tsx`
+- ✎ `routes/_authenticated/products.tsx` (button wiring, ProductSheet trimming, placeholder inputs)
+- ✎ `routes/_authenticated/finance.tsx` (overhead checkbox + uses_total)
+- ✖ `QuickAddSheet.tsx`
+- ✎ `AppShell.tsx` / FAB if it currently opens QuickAdd
 
-Every table has `user_id uuid references auth.users on delete cascade`, RLS enabled, policies `user_id = auth.uid()`, and explicit grants to `authenticated` + `service_role`.
-
-Core tables:
-
-- `profiles` — display name, business name, currency (default ৳), avatar, locale.
-- `materials` — name, unit (g/pcs/ml), current_qty, low_threshold, avg_unit_cost.
-- `material_purchases` — material_id, qty, total_cost, supplier_id, purchased_at. Trigger updates `materials.current_qty` and recomputes `avg_unit_cost`.
-- `suppliers` — name, contact, notes.
-- `products` — name, photo_url, selling_price, current_stock, category, archived.
-- `product_recipe_items` — product_id, material_id, qty_per_unit. (Cost-per-unit derived = Σ qty × avg_unit_cost + labor + electricity.)
-- `orders` — customer_id, status enum (new/processing/shipped/delivered/cancelled), platform enum (facebook/instagram/website/whatsapp/other), shipping_cost, payment_method (cash/bkash/nagad/bank), notes, ordered_at.
-- `order_items` — order_id, product_id, qty, unit_price, unit_cost_snapshot. Trigger decrements product stock + materials on transition to `shipped`.
-- `customers` — name, phone, address, notes.
-- `expenses` — category_id, amount, description, spent_at, is_reinvestment bool, related_material_purchase_id nullable.
-- `expense_categories` — name (Resin, Packaging, Equipment, Ads, Other).
-- `reinvestments` — view over expenses where `is_reinvestment = true` grouped by month.
-- `feedback` — customer_id, product_id, rating (1–5), comment, photo_url.
-- `goals` — title, target_amount or target_count, metric_kind (revenue/units/savings/custom), deadline, completed.
-- `wallets` — kind (cash/bkash/nagad/bank), balance. Adjusted by sales/expenses via trigger.
-- `notifications` — kind, payload, read.
-
-Derived via SQL views / RPCs:
-
-- `v_product_cost(product_id)` → unit cost.
-- `v_daily_sales(user_id, day)` → revenue, profit.
-- `v_top_products`, `v_low_stock_materials`, `v_monthly_pnl`.
-
-## Server functions (`src/lib/*.functions.ts`)
-
-All use `requireSupabaseAuth`. Examples:
-
-- `dashboard.functions.ts` → `getDashboardSnapshot()` (today sales/profit, pending orders count, low-stock count, 7-day revenue, top product, reinvestment summary, recent orders/expenses/feedback).
-- `products.functions.ts` → list/get/create/update, compute cost.
-- `orders.functions.ts` → list by status, create, transition status.
-- `inventory.functions.ts` → list materials, record purchase.
-- `finance.functions.ts` → monthly P&L, cash flow.
-- `analytics.functions.ts` → growth %, AOV, best/worst products, platform breakdown.
-- `insights.functions.ts` → rule-based insight cards (margin shifts, slow movers, projected runout based on 30-day burn).
-- `goals.functions.ts`, `feedback.functions.ts`, `customers.functions.ts`.
-
-`attachSupabaseAuth` appended to `src/start.ts` functionMiddleware (if not already wired).
-
-## Auth
-
-- `/auth` page: email/password sign in + sign up tabs, redirects to `/` on success.
-- `_authenticated/route.tsx` (integration-managed) gates the app.
-- Sign-up trigger creates a `profiles` row.
-- Sign out from More → clear queries, navigate to `/auth`.
-
-## Screen specs
-
-- **Dashboard (bento)**: greeting + date • hero pair "Today's Sales / Today's Profit" (oversized Outfit Black) • mini cards: Pending Orders, Low Stock • 7-day revenue area chart • Top Product tactile card w/ margin badge • Reinvestment chip chain (Profit → Resin → Packaging → Remaining) • Recent Orders (3), Recent Expenses (2), Recent Feedback (1) • FAB "Record Sale".
-- **Products**: card grid w/ photo, cost/price/profit/stock; detail shows recipe table, cost breakdown, sales history sparkline, reviews; "Record Sale" FAB on detail.
-- **Inventory**: material rows with progress bars, "⚠ Low Soon" badge; tap → purchase history + supplier + avg cost.
-- **Orders**: horizontal Kanban (swipe between columns on mobile), drag handle to advance status; tap → order detail w/ items, customer, totals.
-- **Customers**: cards (name, orders, spent, rating, last purchase) → detail with timeline, LTV, favorite product.
-- **Finance**: tabs Revenue / Expenses / Profit / Reinvestment; cash flow line chart; transactions list filterable.
-- **Reinvestment**: vertical money-flow timeline (Profit ↓ Bought Resin ↓ Bought Packaging ↓ Remaining Cash).
-- **Analytics**: KPI cards (Growth, Margin, AOV, Returning Customers, Best/Worst Product, Most Expensive Material, Best Month) + bar/line/pie + day-of-week heatmap.
-- **AI Insights**: rule-based cards now (margin delta, slow movers, projected resin runout, best day-of-week); marked "Powered by Hanami AI" with a placeholder hook ready for Lovable AI Gateway later.
-- **Goals**: list w/ progress bars, add modal.
-- **Feedback**: list with large stars and photo; add review modal.
-- **More/Settings**: business profile, currency (defaults ৳), wallets, suppliers, export CSV, dark mode toggle, sign out.
-
-## Tech notes
-
-- TanStack Query loaders + `useSuspenseQuery`; mutations invalidate keys.
-- Charts via `recharts` (already common in shadcn). Drag-and-drop Kanban via `@dnd-kit/core`.
-- Self-host fonts via `@fontsource/outfit` and `@fontsource/figtree`.
-- Numbers formatted with `Intl.NumberFormat('en-IN')` and ৳ prefix; helper `formatBDT(n)`.
-- Seed-data NOT included (per security rules); empty states show "Add your first product / material / order".
-
-## Build order (one turn, parallel where possible)
-
-1. Enable Lovable Cloud.
-2. Migration: enums, all tables, RLS + grants, triggers (stock decrement, avg cost), views.
-3. Auth page + profile trigger.
-4. App shell: bottom nav, FAB, theme tokens, fonts.
-5. Server functions for each domain.
-6. Screens in order: Dashboard → Products → Inventory → Orders → Customers → Finance → Reinvestment → Analytics → Insights → Goals → Feedback → Settings.
-7. Verify build green.
-
-## Out of scope (later)
-
-- Real ML predictions (we ship rule-based insights now; Lovable AI Gateway hook is ready to swap in).
-- Multi-business / staff accounts.
-- Photo uploads for products/feedback in v1 use URL field; Cloud Storage upload widget later.
-- PDF export (CSV only in v1).
+**Out of scope:** Inventory page, orders, dashboard cost displays continue to work — they read `unit_cost` from the same updated server functions.

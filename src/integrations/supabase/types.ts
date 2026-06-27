@@ -72,10 +72,12 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_overhead: boolean
           is_reinvestment: boolean
           related_material_purchase_id: string | null
           spent_at: string
           user_id: string
+          uses_total: number
         }
         Insert: {
           amount: number
@@ -83,10 +85,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_overhead?: boolean
           is_reinvestment?: boolean
           related_material_purchase_id?: string | null
           spent_at?: string
           user_id: string
+          uses_total?: number
         }
         Update: {
           amount?: number
@@ -94,10 +98,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_overhead?: boolean
           is_reinvestment?: boolean
           related_material_purchase_id?: string | null
           spent_at?: string
           user_id?: string
+          uses_total?: number
         }
         Relationships: [
           {
@@ -388,29 +394,71 @@ export type Database = {
           },
         ]
       }
+      product_overheads: {
+        Row: {
+          created_at: string
+          expense_id: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expense_id: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expense_id?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_overheads_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_overheads_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_recipe_items: {
         Row: {
           created_at: string
           id: string
-          material_id: string
+          material_id: string | null
+          material_name: string | null
           product_id: string
           qty_per_unit: number
+          unit_cost_override: number | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          material_id: string
+          material_id?: string | null
+          material_name?: string | null
           product_id: string
           qty_per_unit: number
+          unit_cost_override?: number | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          material_id?: string
+          material_id?: string | null
+          material_name?: string | null
           product_id?: string
           qty_per_unit?: number
+          unit_cost_override?: number | null
           user_id?: string
         }
         Relationships: [
