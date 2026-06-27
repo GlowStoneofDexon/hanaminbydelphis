@@ -138,20 +138,28 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const create = useServerFn(createExpense);
   const catsFn = useServerFn(listExpenseCategories);
   const cats = useQuery({ queryKey: ["expense-categories"], queryFn: () => catsFn(), enabled: open });
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [isReinvest, setIsReinvest] = useState(false);
+  const [isOverhead, setIsOverhead] = useState(false);
+  const [usesTotal, setUsesTotal] = useState("50");
   const mutate = useMutation({
     mutationFn: () => create({
       data: {
-        amount: Number(amount),
+        amount: Number(amount || 0),
         description: description || null,
         category_id: categoryId || undefined,
         is_reinvestment: isReinvest,
+        is_overhead: isOverhead,
+        uses_total: Math.max(1, Number(usesTotal || 50)),
       },
     }),
-    onSuccess: () => { toast.success("Expense added"); qc.invalidateQueries(); onOpenChange(false); setAmount(0); setDescription(""); setCategoryId(""); setIsReinvest(false); },
+    onSuccess: () => {
+      toast.success("Expense added"); qc.invalidateQueries(); onOpenChange(false);
+      setAmount(""); setDescription(""); setCategoryId(""); setIsReinvest(false);
+      setIsOverhead(false); setUsesTotal("50");
+    },
   });
 
   return (
@@ -159,12 +167,12 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       <SheetContent side="bottom" className="rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="font-display">New expense</SheetTitle>
-          <SheetDescription>Mark as reinvestment if it grows the business.</SheetDescription>
+          <SheetDescription>Mark as overhead to auto-spread across products.</SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-3">
           <div className="space-y-1.5">
             <Label>Amount (৳)</Label>
-            <Input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <Input type="number" inputMode="decimal" value={amount} placeholder="500" onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
@@ -186,7 +194,28 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             <span className="text-sm">Reinvestment (counts toward growth)</span>
             <Switch checked={isReinvest} onCheckedChange={setIsReinvest} />
           </label>
-          <Button className="h-11 w-full rounded-2xl" disabled={!amount || mutate.isPending} onClick={() => mutate.mutate()}>
+          <label className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 px-3 py-2.5">
+            <span className="text-sm">Use as product overhead</span>
+            <Switch checked={isOverhead} onCheckedChange={setIsOverhead} />
+          </label>
+          {isOverhead && (
+            <div className="space-y-1.5">
+              <Label>Spread over how many uses?</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={usesTotal}
+                placeholder="50"
+                onChange={(e) => setUsesTotal(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Per-unit cost ≈ {Number(amount || 0) > 0 && Number(usesTotal || 0) > 0
+                  ? formatBDT(Number(amount) / Number(usesTotal))
+                  : "—"}
+              </p>
+            </div>
+          )}
+          <Button className="h-11 w-full rounded-2xl" disabled={!Number(amount) || mutate.isPending} onClick={() => mutate.mutate()}>
             {mutate.isPending ? "Saving…" : "Add expense"}
           </Button>
         </div>

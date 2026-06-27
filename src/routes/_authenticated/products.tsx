@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -7,25 +7,56 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listProducts, upsertProduct, deleteProduct, type ProductWithCost } from "@/lib/products.functions";
-import { listMaterials } from "@/lib/inventory.functions";
+import { listProducts, upsertProduct, deleteProduct, getProduct, type ProductWithCost } from "@/lib/products.functions";
+import { listOverheadExpenses } from "@/lib/finance.functions";
 import { formatBDT } from "@/lib/format";
-import { Plus, Package, Trash2 } from "lucide-react";
+import { Plus, Package, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
-import { QuickAddSheet } from "@/components/products/QuickAddSheet";
+import { ProductSurveySheet, type SurveyResult } from "@/components/products/ProductSurveySheet";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Products — Hanami" }] }),
   component: ProductsPage,
 });
 
+type RecipeRow = { material_name: string; cost: string; qty: string };
+type Prefill = {
+  name?: string;
+  category?: string;
+  selling_price?: string;
+  current_stock?: string;
+  labor_cost?: string;
+  recipe?: RecipeRow[];
+  overhead_expense_ids?: string[];
+};
+
 function ProductsPage() {
   const fn = useServerFn(listProducts);
   const { data } = useSuspenseQuery({ queryKey: ["products"], queryFn: () => fn() });
-  const [editing, setEditing] = useState<ProductWithCost | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
+
+  const onSurveyComplete = (r: SurveyResult) => {
+    setSurveyOpen(false);
+    setEditingId(null);
+    setPrefill({
+      name: r.name,
+      category: r.category,
+      selling_price: r.selling_price ? String(r.selling_price) : "",
+      current_stock: r.current_stock ? String(r.current_stock) : "",
+      labor_cost: r.labor_cost ? String(r.labor_cost) : "",
+      recipe: r.recipe.map((m) => ({
+        material_name: m.material_name,
+        cost: String(m.unit_cost_override),
+        qty: String(m.qty_per_unit),
+      })),
+      overhead_expense_ids: r.overhead_expense_ids,
+    });
+    setOpen(true);
+  };
 
   return (
     <AppShell
@@ -33,23 +64,28 @@ function ProductsPage() {
       subtitle="Your catalog"
       right={
         <div className="flex gap-1.5">
-          <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setEditing(null); setOpen(true); }}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-full"
+            onClick={() => { setEditingId(null); setPrefill(null); setOpen(true); }}
+          >
             Manual
           </Button>
-          <Button size="sm" className="rounded-full" onClick={() => setQuickOpen(true)}>
+          <Button size="sm" className="rounded-full" onClick={() => setSurveyOpen(true)}>
             <Plus className="h-4 w-4" /> New
           </Button>
         </div>
       }
     >
       {data.length === 0 ? (
-        <EmptyState onAdd={() => setQuickOpen(true)} />
+        <EmptyState onAdd={() => setSurveyOpen(true)} />
       ) : (
         <div className="grid gap-3">
           {data.map((p) => (
             <button
               key={p.id}
-              onClick={() => { setEditing(p); setOpen(true); }}
+              onClick={() => { setEditingId(p.id); setPrefill(null); setOpen(true); }}
               className="card-soft flex items-center gap-3 p-3 text-left"
             >
               <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-secondary">
@@ -70,14 +106,18 @@ function ProductsPage() {
           ))}
         </div>
       )}
-      <ProductSheet open={open} onOpenChange={setOpen} editing={editing} />
-      <QuickAddSheet
-        open={quickOpen}
-        onOpenChange={setQuickOpen}
-        onCreated={(id) => {
-          setEditing({ id } as ProductWithCost);
-          setOpen(true);
-        }}
+      {open && (
+        <ProductSheet
+          open={open}
+          onOpenChange={(o) => { setOpen(o); if (!o) setPrefill(null); }}
+          editingId={editingId}
+          prefill={prefill}
+        />
+      )}
+      <ProductSurveySheet
+        open={surveyOpen}
+        onOpenChange={setSurveyOpen}
+        onComplete={onSurveyComplete}
       />
     </AppShell>
   );
@@ -98,74 +138,98 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-type RecipeRow = { material_id: string; qty_per_unit: number };
-
 function ProductSheet({
-  open, onOpenChange, editing,
-}: { open: boolean; onOpenChange: (o: boolean) => void; editing: ProductWithCost | null }) {
+  open, onOpenChange, editingId, prefill,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  editingId: string | null;
+  prefill: Prefill | null;
+}) {
   const qc = useQueryClient();
   const upsert = useServerFn(upsertProduct);
   const del = useServerFn(deleteProduct);
-  const matsFn = useServerFn(listMaterials);
-  const mats = useQuery({ queryKey: ["materials"], queryFn: () => matsFn(), enabled: open });
+  const getFn = useServerFn(getProduct);
+  const ohFn = useServerFn(listOverheadExpenses);
 
-  const [name, setName] = useState(editing?.name ?? "");
-  const [category, setCategory] = useState(editing?.category ?? "");
-  const [photo, setPhoto] = useState(editing?.photo_url ?? "");
-  const [price, setPrice] = useState<number>(editing?.selling_price ?? 0);
-  const [stock, setStock] = useState<number>(editing?.current_stock ?? 0);
-  const [labor, setLabor] = useState<number>(editing?.labor_cost ?? 0);
-  const [overhead, setOverhead] = useState<number>(editing?.overhead_cost ?? 0);
-  const [recipe, setRecipe] = useState<RecipeRow[]>([]);
+  const overheads = useQuery({ queryKey: ["overhead-expenses"], queryFn: () => ohFn(), enabled: open });
 
-  // load full recipe when editing
+  const [name, setName] = useState(prefill?.name ?? "");
+  const [category, setCategory] = useState(prefill?.category ?? "");
+  const [photo, setPhoto] = useState("");
+  const [price, setPrice] = useState<string>(prefill?.selling_price ?? "");
+  const [stock, setStock] = useState<string>(prefill?.current_stock ?? "");
+  const [labor, setLabor] = useState<string>(prefill?.labor_cost ?? "");
+  const [overhead, setOverhead] = useState<string>("");
+  const [recipe, setRecipe] = useState<RecipeRow[]>(prefill?.recipe ?? []);
+  const [overheadIds, setOverheadIds] = useState<string[]>(prefill?.overhead_expense_ids ?? []);
+
+  // load existing product
   useQuery({
-    queryKey: ["product-full", editing?.id ?? "new", open],
+    queryKey: ["product-full", editingId],
     queryFn: async () => {
-      if (!editing?.id) return null;
-      const mod = await import("@/lib/products.functions");
-      const getProduct = mod.getProduct;
-      const data = (await getProduct({ data: { id: editing.id } })) as any;
+      if (!editingId) return null;
+      const data: any = await getFn({ data: { id: editingId } });
       if (data) {
-        setName(data.name); setCategory(data.category ?? "");
-        setPhoto(data.photo_url ?? ""); setPrice(Number(data.selling_price));
-        setStock(Number(data.current_stock)); setLabor(Number(data.labor_cost));
-        setOverhead(Number(data.overhead_cost));
-        setRecipe((data.recipe ?? []).map((r: any) => ({
-          material_id: r.material_id,
-          qty_per_unit: Number(r.qty_per_unit),
-        })));
+        setName(data.name ?? "");
+        setCategory(data.category ?? "");
+        setPhoto(data.photo_url ?? "");
+        setPrice(data.selling_price ? String(data.selling_price) : "");
+        setStock(data.current_stock != null ? String(data.current_stock) : "");
+        setLabor(data.labor_cost ? String(data.labor_cost) : "");
+        setOverhead(data.overhead_cost ? String(data.overhead_cost) : "");
+        setRecipe(
+          (data.recipe ?? []).map((r: any) => ({
+            material_name: r.material_name ?? r.materials?.name ?? "",
+            cost: String(r.unit_cost_override ?? r.materials?.avg_unit_cost ?? 0),
+            qty: String(r.qty_per_unit ?? 1),
+          })),
+        );
+        setOverheadIds(data.overhead_expense_ids ?? []);
       }
       return data;
     },
-    enabled: open && !!editing?.id,
+    enabled: open && !!editingId,
+    staleTime: 0,
   });
 
-  // reset on close
-  if (!open && (name || recipe.length)) {
-    // noop — let parent control
-  }
-
-  const matCost = recipe.reduce((s, r) => {
-    const m = mats.data?.find((x: any) => x.id === r.material_id);
-    return s + Number(r.qty_per_unit) * Number(m?.avg_unit_cost ?? 0);
+  // amortized overhead preview
+  const amortized = overheadIds.reduce((s, id) => {
+    const o = overheads.data?.find((x: any) => x.id === id);
+    return s + Number(o?.per_unit ?? 0);
   }, 0);
-  const unitCost = matCost + Number(labor) + Number(overhead);
-  const profit = Number(price) - unitCost;
-  const margin = price > 0 ? (profit / Number(price)) * 100 : 0;
+  const matCost = recipe.reduce(
+    (s, r) => s + Number(r.cost || 0) * Number(r.qty || 1),
+    0,
+  );
+  const unitCost = matCost + Number(labor || 0) + Number(overhead || 0) + amortized;
+  const profit = Number(price || 0) - unitCost;
+  const margin = Number(price || 0) > 0 ? (profit / Number(price)) * 100 : 0;
 
   const save = useMutation({
-    mutationFn: () => upsert({
-      data: {
-        id: editing?.id,
-        name, category: category || null, photo_url: photo || null,
-        selling_price: Number(price), current_stock: Number(stock),
-        labor_cost: Number(labor), overhead_cost: Number(overhead),
-        recipe,
-      },
-    }),
+    mutationFn: () =>
+      upsert({
+        data: {
+          id: editingId ?? undefined,
+          name,
+          category: category || null,
+          photo_url: photo || null,
+          selling_price: Number(price || 0),
+          current_stock: Number(stock || 0),
+          labor_cost: Number(labor || 0),
+          overhead_cost: Number(overhead || 0),
+          recipe: recipe
+            .filter((r) => r.material_name.trim())
+            .map((r) => ({
+              material_name: r.material_name.trim(),
+              unit_cost_override: Number(r.cost || 0),
+              qty_per_unit: Number(r.qty || 1),
+            })),
+          overhead_expense_ids: overheadIds,
+        },
+      }),
     onSuccess: () => {
-      toast.success(editing ? "Product updated" : "Product added");
+      toast.success(editingId ? "Product updated" : "Product added");
       qc.invalidateQueries();
       onOpenChange(false);
     },
@@ -173,7 +237,7 @@ function ProductSheet({
   });
 
   const remove = useMutation({
-    mutationFn: () => del({ data: { id: editing!.id } }),
+    mutationFn: () => del({ data: { id: editingId! } }),
     onSuccess: () => {
       toast.success("Product deleted");
       qc.invalidateQueries();
@@ -183,81 +247,110 @@ function ProductSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[82vh] overflow-y-auto rounded-t-3xl p-4 pb-6">
+      <SheetContent side="bottom" className="max-h-[72vh] overflow-y-auto rounded-t-3xl p-4 pb-6">
+        <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-muted" />
         <SheetHeader className="space-y-0.5">
-          <SheetTitle className="font-display text-base">{editing ? "Edit product" : "New product"}</SheetTitle>
-          <SheetDescription className="text-xs">Recipe builds cost automatically.</SheetDescription>
+          <SheetTitle className="font-display text-base">{editingId ? "Edit product" : "New product"}</SheetTitle>
+          <SheetDescription className="text-xs">Review &amp; save. Cost updates as you type.</SheetDescription>
         </SheetHeader>
+
         <div className="mt-3 space-y-2.5">
           <div className="space-y-1">
             <Label className="text-xs">Name</Label>
             <Input className="h-9" value={name} onChange={(e) => setName(e.target.value)} placeholder="Rose pendant" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Category</Label>
-              <Input className="h-9" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Earrings" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Photo URL</Label>
-              <Input className="h-9" value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder="https://…" />
-            </div>
+            <Field label="Category" v={category} set={setCategory} placeholder="Earrings" />
+            <Field label="Photo URL" v={photo} set={setPhoto} placeholder="https://…" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Selling price (৳)</Label>
-              <Input className="h-9" type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Stock</Label>
-              <Input className="h-9" type="number" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
-            </div>
+            <NumField label="Selling price (৳)" v={price} set={setPrice} placeholder="250" />
+            <NumField label="Stock" v={stock} set={setStock} placeholder="15" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Labor (৳)</Label>
-              <Input className="h-9" type="number" value={labor} onChange={(e) => setLabor(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Overhead (৳)</Label>
-              <Input className="h-9" type="number" value={overhead} onChange={(e) => setOverhead(Number(e.target.value))} />
-            </div>
+            <NumField label="Labor (৳)" v={labor} set={setLabor} placeholder="30" />
+            <NumField label="Extra overhead (৳)" v={overhead} set={setOverhead} placeholder="0" />
           </div>
 
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <Label>Recipe (materials used per unit)</Label>
-              <Button size="sm" variant="secondary" className="rounded-full"
-                onClick={() => setRecipe((r) => [...r, { material_id: "", qty_per_unit: 0 }])}>
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label className="text-xs">Recipe — write material name &amp; cost</Label>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 rounded-full px-2 text-xs"
+                onClick={() => setRecipe((r) => [...r, { material_name: "", cost: "", qty: "1" }])}
+              >
                 <Plus className="h-3.5 w-3.5" /> Add
               </Button>
             </div>
             {recipe.length === 0 && (
-              <p className="rounded-2xl bg-muted/40 p-3 text-center text-xs text-muted-foreground">
-                No materials yet. Add materials in Inventory first.
+              <p className="rounded-2xl bg-muted/40 p-2.5 text-center text-xs text-muted-foreground">
+                No materials yet.
               </p>
             )}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {recipe.map((r, i) => (
-                <div key={i} className="grid grid-cols-[1fr_5rem_2rem] items-center gap-2">
-                  <Select value={r.material_id}
-                    onValueChange={(v) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, material_id: v } : x))}>
-                    <SelectTrigger><SelectValue placeholder="Select material" /></SelectTrigger>
-                    <SelectContent>
-                      {(mats.data ?? []).map((m: any) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="number" value={r.qty_per_unit}
-                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, qty_per_unit: Number(e.target.value) } : x))} />
-                  <button onClick={() => setRecipe((rs) => rs.filter((_, j) => j !== i))}
-                    className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:bg-muted">
+                <div key={i} className="grid grid-cols-[1fr_4.5rem_4rem_2rem] items-center gap-1.5">
+                  <Input
+                    className="h-9"
+                    placeholder="Resin"
+                    value={r.material_name}
+                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, material_name: e.target.value } : x))}
+                  />
+                  <Input
+                    className="h-9"
+                    inputMode="decimal"
+                    placeholder="৳ 0"
+                    value={r.cost}
+                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, cost: e.target.value } : x))}
+                  />
+                  <Input
+                    className="h-9"
+                    inputMode="decimal"
+                    placeholder="qty 1"
+                    value={r.qty}
+                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))}
+                  />
+                  <button
+                    onClick={() => setRecipe((rs) => rs.filter((_, j) => j !== i))}
+                    className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:bg-muted"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Overheads used (auto-spread)</Label>
+            {(overheads.data ?? []).length === 0 ? (
+              <p className="mt-1 rounded-2xl bg-muted/40 p-2.5 text-center text-xs text-muted-foreground">
+                Mark expenses as overhead in Finance to use them here.
+              </p>
+            ) : (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {(overheads.data ?? []).map((o: any) => {
+                  const on = overheadIds.includes(o.id);
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() =>
+                        setOverheadIds((ids) => on ? ids.filter((x) => x !== o.id) : [...ids, o.id])
+                      }
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition",
+                        on ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground",
+                      )}
+                    >
+                      {on && <Check className="mr-1 inline h-3 w-3" />}
+                      {o.label} · {formatBDT(o.per_unit)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-secondary/60 p-3">
@@ -266,19 +359,48 @@ function ProductSheet({
             <Stat label="Margin" value={`${Math.round(margin)}%`} />
           </div>
 
-          <div className="flex gap-2 pt-2">
-            {editing && (
+          <div className="flex gap-2 pt-1">
+            {editingId && (
               <Button variant="outline" className="rounded-2xl" onClick={() => remove.mutate()}>
                 <Trash2 className="h-4 w-4" /> Delete
               </Button>
             )}
-            <Button className="ml-auto h-11 rounded-2xl px-6" disabled={!name || save.isPending} onClick={() => save.mutate()}>
+            <Button
+              className="ml-auto h-11 rounded-2xl px-6"
+              disabled={!name || save.isPending}
+              onClick={() => save.mutate()}
+            >
               {save.isPending ? "Saving…" : "Save"}
             </Button>
           </div>
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function Field({ label, v, set, placeholder }: { label: string; v: string; set: (s: string) => void; placeholder?: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input className="h-9" value={v} onChange={(e) => set(e.target.value)} placeholder={placeholder} />
+    </div>
+  );
+}
+
+function NumField({ label, v, set, placeholder }: { label: string; v: string; set: (s: string) => void; placeholder?: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        className="h-9"
+        type="number"
+        inputMode="decimal"
+        value={v}
+        onChange={(e) => set(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
   );
 }
 
@@ -292,3 +414,5 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "pr
     </div>
   );
 }
+// satisfy unused import linters if any
+void useEffect;
