@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -5,8 +6,9 @@ import { Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app/AppShell";
 import { getDashboardSnapshot, type DashboardSnapshot } from "@/lib/dashboard.functions";
 import { formatBDT, greeting, fmtDate } from "@/lib/format";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { AlertTriangle, ArrowUpRight, Package, ShoppingBag, Star } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { ArrowUpRight, Package, ShoppingBag, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Home — Hanami" }] }),
@@ -19,6 +21,19 @@ function Dashboard() {
     queryKey: ["dashboard"],
     queryFn: () => fn() as Promise<DashboardSnapshot>,
   });
+  const [mode, setMode] = useState<"day" | "month">("day");
+
+  const chartData = mode === "day"
+    ? data.revenue_7d.map((d) => ({
+        label: d.day.slice(5),
+        sales: Math.round(d.revenue),
+        profit: Math.round(d.profit),
+      }))
+    : data.revenue_6m.map((m) => {
+        const [, mm] = m.month.split("-");
+        const name = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(mm) - 1] ?? mm;
+        return { label: name, sales: Math.round(m.revenue), profit: Math.round(m.profit) };
+      });
 
   return (
     <AppShell
@@ -32,58 +47,68 @@ function Dashboard() {
       </div>
 
       {/* Mini KPIs */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-1 gap-3">
         <KpiMini
           icon={<ShoppingBag className="h-4 w-4" />}
           label="Pending orders"
           value={String(data.pending_orders)}
           link="/orders"
         />
-        <KpiMini
-          icon={<AlertTriangle className="h-4 w-4 text-warn" />}
-          label="Low stock"
-          value={String(data.low_stock_count)}
-          link="/inventory"
-        />
       </div>
 
-      {/* 7-day chart */}
+      {/* Cash flow — Sales vs Profit */}
       <section className="mt-3 card-soft p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Last 7 days</p>
-            <h2 className="font-display text-lg font-bold">Revenue</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              {mode === "day" ? "Last 7 days" : "Last 6 months"}
+            </p>
+            <h2 className="font-display text-lg font-bold">Cash flow</h2>
           </div>
-          <Link to="/analytics" className="chip text-primary">
-            More <ArrowUpRight className="h-3 w-3" />
-          </Link>
+          <div className="flex rounded-full bg-muted p-0.5 text-xs">
+            <button
+              onClick={() => setMode("day")}
+              className={cn(
+                "rounded-full px-3 py-1 font-medium transition",
+                mode === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              Days
+            </button>
+            <button
+              onClick={() => setMode("month")}
+              className={cn(
+                "rounded-full px-3 py-1 font-medium transition",
+                mode === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              Months
+            </button>
+          </div>
         </div>
-        <div className="mt-3 h-32">
+        <div className="mt-3 h-44">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.revenue_7d} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" hide />
+            <BarChart data={chartData} margin={{ left: -16, right: 4, top: 4, bottom: 0 }} barGap={3} barCategoryGap="22%">
+              <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--color-border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={36} />
               <Tooltip
-                contentStyle={{ borderRadius: 14, border: "1px solid var(--color-border)" }}
-                formatter={(v: number) => formatBDT(v)}
-                labelFormatter={(d) => fmtDate(d as string)}
+                cursor={{ fill: "var(--color-muted)", opacity: 0.4 }}
+                contentStyle={{ borderRadius: 14, border: "1px solid var(--color-border)", fontSize: 12 }}
+                formatter={(v: number, n) => [formatBDT(v), n === "sales" ? "Sales" : "Profit"]}
               />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="var(--color-primary)"
-                strokeWidth={2.5}
-                fill="url(#gradRev)"
+              <Legend
+                iconType="circle"
+                wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                formatter={(v) => (v === "sales" ? "Sales" : "Profit")}
               />
-            </AreaChart>
+              <Bar dataKey="sales" fill="var(--color-primary)" radius={[6, 6, 0, 0]} maxBarSize={14} />
+              <Bar dataKey="profit" fill="var(--color-profit)" radius={[6, 6, 0, 0]} maxBarSize={14} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </section>
+
 
       {/* Top product */}
       {data.top_product ? (
