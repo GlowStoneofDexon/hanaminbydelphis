@@ -1,124 +1,76 @@
-## Goal
+## Scope
 
-Replace the AI-text Quick Add with a guided survey flow, make recipes free-text, auto-calculate overhead from expenses, fix the "0" placeholder issue, and trim the product form.
+Implement the 8 requested changes across UI, server functions, and DB.
 
----
+## Files affected
 
-## 1. New product entry flow
+- `src/components/app/AppShell.tsx` — accept `hideNav` to hide BottomNav + FAB on nested pages; apply safe-area + 100dvh so background paints under system bars.
+- `src/components/app/BottomNav.tsx` — no logic change (controlled by AppShell prop).
+- `src/routes/_authenticated/dashboard.tsx` — remove "Low stock" KPI tile, remove the 7-day Revenue area chart, replace with new `SalesProfitChart` (uses cash flow data).
+- `src/routes/_authenticated/finance.tsx` — remove the Cash flow chart card (moved to Home); remove Overhead switch + "spread over N uses" inputs from expense sheet.
+- `src/routes/_authenticated/analytics.tsx` — remove the "Best sales days" weekday heatmap card.
+- `src/routes/_authenticated/inventory.tsx` — remove low-stock threshold field, "Low" chip, threshold progress bar.
+- `src/routes/_authenticated/orders.tsx`, `feedback.tsx`, `inventory.tsx`, `customers.tsx`, `goals.tsx`, `insights.tsx`, `finance.reinvestment.tsx` — pass `hideNav` to `AppShell`. Main 5 (dashboard, products, finance, analytics, more) keep nav.
+- `src/components/products/ProductSurveySheet.tsx` — replace "overheads (split)" step with single direct "Overhead cost (৳)" numeric step.
+- `src/routes/_authenticated/products.tsx` (ProductSheet) — drop overhead-expense multi-select, keep simple `overhead` numeric input only.
+- `src/lib/dashboard.functions.ts` — return `cashflow_30d` series `{day, sales, profit}`; drop `low_stock_count`.
+- `src/lib/finance.functions.ts` — drop `is_overhead`/`uses_total` from `createExpense` schema; remove `listOverheadExpenses` export.
+- `src/lib/products.functions.ts` — remove `overhead_expense_ids`, `computeAmortizedOverhead`, `product_overheads` reads/writes; unit cost = materials + labor + overhead_cost only.
+- `src/lib/inventory.functions.ts` — drop `low_threshold` from MaterialSchema + insert/update.
+- `src/styles.css` — `html, body { min-height: 100dvh }` + `body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); background: var(--color-background); }`. Update `theme-color` meta in `__root.tsx` to match new card-soft surface so Android status bar isn't black.
 
-**Remove:** `QuickAddSheet.tsx` (AI text-to-record) and the `quickCreateProduct` server function — no longer needed.
+## Database migration (single migration)
 
-**New component:** `src/components/products/ProductSurveySheet.tsx`
-- One-question-at-a-time wizard, mobile-friendly, single large input per step.
-- Steps:
-  1. Name *(required)*
-  2. Selling price ৳ *(required)*
-  3. Stock *(skippable, default 0)*
-  4. Labor cost ৳ *(skippable)*
-  5. Category *(skippable)*
-  6. Materials/recipe — free-text rows: "name + cost" (skippable)
-  7. Overheads — multi-select chips from existing overhead pool (skippable)
-- Footer: **Back** / **Skip** / **Next** buttons; **Next** disabled on required steps until valid; final step **Continue** opens the existing product form prefilled with all answers for final review & save.
-- Progress dots at top. State held locally; user can navigate freely back/forward without losing answers.
-
-**Products page (`src/routes/_authenticated/products.tsx`) buttons:**
-- `+ New` → opens the survey (replaces current AI sheet trigger).
-- `Manual` → opens the product form directly (current behavior, unchanged).
-- Global floating `+` (in `AppShell`/`BottomNav` if it routes here) → also opens the survey.
-
----
-
-## 2. Free-text recipe rows
-
-In the product form (`ProductSheet`), replace the `<Select>` material dropdown with two text inputs per row: **material name** and **cost per unit (৳)**. No more linking to the `materials` table from this form.
-
-**Data model:** add nullable columns to `product_recipe_items`:
-- `material_name text` (used when `material_id` is null)
-- `unit_cost_override numeric` (used when `material_id` is null)
-
-Make `material_id` nullable. Server-side cost calc (`computeUnitCost` in `products.functions.ts` and the batch version in `listProducts`) sums:
-`qty_per_unit * (materials.avg_unit_cost ?? unit_cost_override)` so existing material-linked rows keep working.
-
-Update `upsertProduct` `RecipeItemSchema` to accept either `{material_id, qty_per_unit}` or `{material_name, unit_cost_override, qty_per_unit:1}`.
-
-Existing Inventory page and material-purchase flow stay untouched — they remain the "proper" way for power users; survey/free-text is the fast path.
-
----
-
-## 3. Auto-calculated overhead from expenses
-
-**Concept:** Each expense becomes a reusable overhead pool. By default, its cost is amortized across 50 uses (configurable per expense). When a product uses that overhead, `expense.amount / uses_total` is added to the product's overhead.
-
-**Migration:**
-- `expenses`: add `uses_total int default 50`, `is_overhead boolean default false`.
-- New table `product_overheads (product_id uuid, expense_id uuid, primary key (product_id, expense_id))` with RLS + GRANTs (authenticated CRUD, service_role all).
-
-**Expense form (`Finance` page):** add a checkbox "Use as product overhead" + numeric "Spread over N uses (default 50)".
-
-**Product form:** new section **Overheads used** — multi-select chips listing all `is_overhead = true` expenses; selecting them inserts/deletes rows in `product_overheads`.
-
-**Cost calc:** `unit_cost = materials + labor + manual_overhead + Σ(expense.amount / expense.uses_total for selected overheads)`. Update both `getProduct` and `listProducts`. Keep the existing manual `overhead_cost` field as a fallback/extra.
-
-**Survey step 7** lists these overhead expenses as toggleable chips.
-
----
-
-## 4. Remove leading "0" in numeric inputs
-
-Across `ProductSheet`, `ProductSurveySheet`, expense forms, and any other numeric input bound to a `number` state initialized at `0`:
-- Switch state to `string` (`""` when empty), parse with `Number(v || 0)` on save.
-- Render `<Input type="number" value={v} placeholder="100" />` so the field shows a ghost placeholder (e.g. `100`, `15`, `250`) instead of a literal `0` — matching the "type your email…" pattern.
-- Apply to: selling price, stock, labor, overhead, recipe qty, material cost, expense amount, uses_total.
-
----
-
-## 5. Smaller, smoother product form
-
-`ProductSheet` (`products.tsx`):
-- Cap height at `max-h-[70vh]`, add a visible drag handle bar at the top, make outer overlay tap-to-close (default Sheet behavior — ensure no `onInteractOutside preventDefault`).
-- Defer mounting the form body until `open` is true (`{open && <FormBody/>}`) so it doesn't render in the background — fixes lag.
-- Lazy-load the recipe section only after the basic fields are filled (collapse by default with a "Add recipe" toggle), reducing initial paint.
-- Replace the inline `useQuery` for full product data with `enabled: open && !!editing?.id` + `staleTime` and skip if survey already passed prefilled data via props.
-- Keep current spacing; only collapse the always-visible recipe block and remove the redundant 3-stat summary on small screens (move to a single line).
-
----
-
-## Technical summary
-
-**Migration:**
-```sql
-ALTER TABLE public.product_recipe_items
-  ALTER COLUMN material_id DROP NOT NULL,
-  ADD COLUMN material_name text,
-  ADD COLUMN unit_cost_override numeric;
-
-ALTER TABLE public.expenses
-  ADD COLUMN uses_total int NOT NULL DEFAULT 50,
-  ADD COLUMN is_overhead boolean NOT NULL DEFAULT false;
-
-CREATE TABLE public.product_overheads (
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  expense_id uuid NOT NULL REFERENCES public.expenses(id) ON DELETE CASCADE,
-  PRIMARY KEY (product_id, expense_id)
-);
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_overheads TO authenticated;
-GRANT ALL ON public.product_overheads TO service_role;
-ALTER TABLE public.product_overheads ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own rows" ON public.product_overheads
-  FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+```
+ALTER TABLE public.materials DROP COLUMN IF EXISTS low_threshold;
+ALTER TABLE public.expenses  DROP COLUMN IF EXISTS is_overhead, DROP COLUMN IF EXISTS uses_total;
+DROP TABLE IF EXISTS public.product_overheads;
 ```
 
-**Server functions touched:**
-- `products.functions.ts` — schema accepts free-text recipe rows + overhead expense IDs; cost calc updated.
-- `finance.functions.ts` — `ExpenseSchema` gains `uses_total`, `is_overhead`; new `listOverheadExpenses`.
-- Delete `quick-add.functions.ts` and remove its router registration.
+(`product_recipe_items.material_name` / `unit_cost_override` and `products.overhead_cost` stay — they're still needed.)
 
-**Components touched/added:**
-- ✚ `ProductSurveySheet.tsx`
-- ✎ `routes/_authenticated/products.tsx` (button wiring, ProductSheet trimming, placeholder inputs)
-- ✎ `routes/_authenticated/finance.tsx` (overhead checkbox + uses_total)
-- ✖ `QuickAddSheet.tsx`
-- ✎ `AppShell.tsx` / FAB if it currently opens QuickAdd
+## New chart spec
 
-**Out of scope:** Inventory page, orders, dashboard cost displays continue to work — they read `unit_cost` from the same updated server functions.
+`SalesProfitChart` on Home, replacing the area chart slot.
+
+- Top-right segmented toggle: `Days` (default) | `Months`.
+- Days: last 14 days, x = `MM/DD`.
+- Months: last 6 months, x = `Jan`, `Feb`, …
+- Two bars per period: `Sales` (primary lavender) and `Profit` (profit green), `barCategoryGap="25%"`, `barGap={3}`, rounded radius `[4,4,0,0]`, height 180px, hidden Y axis, small X axis, tooltip showing both values with BDT format.
+- Empty state: muted "No sales in this range yet."
+
+Data source: extend `getDashboardSnapshot` to return `cashflow` with both granularities computed server-side (`days_14: {key, sales, profit}[]`, `months_6: {key, sales, profit}[]`) from the same orders query already in scope.
+
+## Nav visibility rule
+
+AppShell signature becomes:
+```
+AppShell({ title, subtitle, right, hideNav, children })
+```
+When `hideNav` is true, BottomNav + RecordSaleSheet FAB are not rendered and bottom padding drops from `pb-32` → `pb-8`. Main routes (`dashboard`, `products`, `finance`, `analytics`, `more`) omit the prop; every other authenticated route passes `hideNav`.
+
+## Viewport / black-band fix
+
+- Add to `src/styles.css`:
+  ```css
+  html, body { min-height: 100dvh; background-color: var(--color-background); }
+  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  ```
+- `__root.tsx`: change `theme-color` to the actual page bg (`#fdf7f9` to match `--background` light theme) so Android/iOS chrome tints to match instead of staying black.
+- AppShell wrapper switches `min-h-screen` → `min-h-dvh`.
+
+## Validation changes
+
+- `ProductUpsertSchema` drops `overhead_expense_ids`; `overhead_cost ≥ 0` (already enforced).
+- `ExpenseSchema` drops `is_overhead`, `uses_total`.
+- `MaterialSchema` drops `low_threshold`.
+
+## Order of build
+
+1. Migration (drop columns/table).
+2. Update server fns (`products`, `finance`, `inventory`, `dashboard`) — keeps types in sync.
+3. Update components (`AppShell`, `BottomNav`, survey sheet, ProductSheet, Inventory page, Finance page, Analytics page, Dashboard page).
+4. Add `SalesProfitChart` + Days/Months toggle on Dashboard.
+5. Add `hideNav` to all non-main routes.
+6. Style fixes (`styles.css`, theme-color).
+7. Typecheck.
