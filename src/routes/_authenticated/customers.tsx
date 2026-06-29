@@ -25,6 +25,7 @@ function CustomersPage() {
 
   return (
     <AppShell
+      hideNav
       title="Customers"
       subtitle="Your buyers"
       right={

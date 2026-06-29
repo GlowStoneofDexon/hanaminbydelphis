@@ -32,7 +32,7 @@ function FeedbackPage() {
   });
 
   return (
-    <AppShell title="Feedback" subtitle="What buyers say"
+    <AppShell hideNav title="Feedback" subtitle="What buyers say"
       right={<Button size="sm" className="rounded-full" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New</Button>}
     >
       {data.list.length > 0 && (

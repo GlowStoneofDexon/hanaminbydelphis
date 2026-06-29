@@ -15,7 +15,7 @@ function InsightsPage() {
   const { data } = useSuspenseQuery({ queryKey: ["insights"], queryFn: () => fn() });
 
   return (
-    <AppShell title="Insights" subtitle="What's happening">
+    <AppShell hideNav title="Insights" subtitle="What's happening">
       <div className="card-soft mb-3 flex items-center gap-3 bg-gradient-to-br from-secondary to-card p-4">
         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
           <Sparkles className="h-5 w-5" />

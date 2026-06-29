@@ -36,7 +36,7 @@ function OrdersPage() {
   }
 
   return (
-    <AppShell title="Orders" subtitle="Manage shipments">
+    <AppShell hideNav title="Orders" subtitle="Manage shipments">
       {data.length === 0 ? (
         <div className="card-soft mt-4 p-8 text-center text-sm text-muted-foreground">
           No orders yet. Tap the + button to record your first sale.
