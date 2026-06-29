@@ -92,10 +92,9 @@ function MaterialSheet({
   const del = useServerFn(deleteMaterial);
   const [name, setName] = useState(editing?.name ?? "");
   const [unit, setUnit] = useState<"g" | "ml" | "pcs">(editing?.unit ?? "g");
-  const [threshold, setThreshold] = useState<number>(Number(editing?.low_threshold ?? 0));
 
   const save = useMutation({
-    mutationFn: () => upsert({ data: { id: editing?.id, name, unit, low_threshold: Number(threshold) } }),
+    mutationFn: () => upsert({ data: { id: editing?.id, name, unit } }),
     onSuccess: () => { toast.success("Saved"); qc.invalidateQueries(); onOpenChange(false); },
   });
   const remove = useMutation({
@@ -115,22 +114,16 @@ function MaterialSheet({
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Resin" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Unit</Label>
-              <Select value={unit} onValueChange={(v) => setUnit(v as typeof unit)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="g">grams</SelectItem>
-                  <SelectItem value="ml">millilitres</SelectItem>
-                  <SelectItem value="pcs">pieces</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Low-stock threshold</Label>
-              <Input type="number" value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Unit</Label>
+            <Select value={unit} onValueChange={(v) => setUnit(v as typeof unit)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="g">grams</SelectItem>
+                <SelectItem value="ml">millilitres</SelectItem>
+                <SelectItem value="pcs">pieces</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex gap-2 pt-2">
             {editing && (

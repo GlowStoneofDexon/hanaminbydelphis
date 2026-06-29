@@ -13,13 +13,13 @@ export const Route = createFileRoute("/_authenticated/analytics")({
 });
 
 const CHART_COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)", "var(--color-chart-5)", "var(--color-lavender)"];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 
 function AnalyticsPage() {
   const fn = useServerFn(getAnalytics);
   const { data } = useSuspenseQuery({ queryKey: ["analytics"], queryFn: () => fn() });
   const growthUp = data.growth_pct >= 0;
-  const heatMax = Math.max(...data.weekday_heatmap.map((w) => w.revenue), 1);
+  
 
   return (
     <AppShell title="Analytics" subtitle="Business pulse"
@@ -81,21 +81,6 @@ function AnalyticsPage() {
         </div>
       </section>
 
-      <section className="mt-3 card-soft p-4">
-        <h2 className="mb-2 font-display text-base font-bold">Best sales days</h2>
-        <div className="grid grid-cols-7 gap-1.5">
-          {data.weekday_heatmap.map((w) => {
-            const intensity = w.revenue / heatMax;
-            return (
-              <div key={w.weekday} className="flex flex-col items-center gap-1">
-                <div className="h-12 w-full rounded-xl border border-border"
-                  style={{ background: `color-mix(in oklab, var(--color-primary) ${Math.round(intensity * 90)}%, var(--color-card))` }} />
-                <span className="text-[10px] text-muted-foreground">{WEEKDAYS[w.weekday]}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
 
       <section className="mt-3 card-soft p-4">
         <h2 className="mb-2 font-display text-base font-bold">Profit by product</h2>
