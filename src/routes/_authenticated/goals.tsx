@@ -36,7 +36,7 @@ function GoalsPage() {
   });
 
   return (
-    <AppShell title="Goals" subtitle="What you're chasing"
+    <AppShell hideNav title="Goals" subtitle="What you're chasing"
       right={<Button size="sm" className="rounded-full" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New</Button>}
     >
       {data.length === 0 ? (

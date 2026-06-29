@@ -36,8 +36,8 @@ export type DashboardSnapshot = {
   today_sales: number;
   today_profit: number;
   pending_orders: number;
-  low_stock_count: number;
   revenue_7d: { day: string; revenue: number; profit: number }[];
+  revenue_6m: { month: string; revenue: number; profit: number }[];
   top_product: { id: string; name: string; margin: number; revenue: number; photo_url: string | null } | null;
   reinvestment: { profit_30d: number; reinvested_30d: number; remaining: number };
   recent_orders: RecentOrder[];
@@ -57,14 +57,14 @@ export const getDashboardSnapshot = createServerFn({ method: "GET" })
     const today = startOfDay(new Date());
     const sevenDaysAgo = new Date(today); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+    const sixMonthsAgo = new Date(today); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5); sixMonthsAgo.setDate(1);
 
-    const [profileRes, ordersRes, materialsRes, productsRes, expensesRes, feedbackRes] = await Promise.all([
+    const [profileRes, ordersRes, productsRes, expensesRes, feedbackRes] = await Promise.all([
       supabase.from("profiles").select("display_name, currency").eq("id", userId).maybeSingle(),
       supabase.from("orders")
         .select("id, status, ordered_at, customer_id, customers(name), order_items(qty, unit_price, unit_cost_snapshot, products(name))")
-        .gte("ordered_at", thirtyDaysAgo.toISOString())
+        .gte("ordered_at", sixMonthsAgo.toISOString())
         .order("ordered_at", { ascending: false }),
-      supabase.from("materials").select("id, name, current_qty, low_threshold"),
       supabase.from("products").select("id, name, photo_url, selling_price"),
       supabase.from("expenses")
         .select("id, amount, description, spent_at, is_reinvestment, expense_categories(name)")
@@ -77,22 +77,27 @@ export const getDashboardSnapshot = createServerFn({ method: "GET" })
     ]);
 
     const orders = (ordersRes.data ?? []) as any[];
-    const materials = (materialsRes.data ?? []) as any[];
     const expenses = (expensesRes.data ?? []) as any[];
 
-    // Compute today + 7day series
+    // 7-day daily series + 6-month monthly series
     let today_sales = 0, today_profit = 0;
     const days: { day: string; revenue: number; profit: number }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(sevenDaysAgo); d.setDate(d.getDate() + i);
-      days.push({ day: d.toISOString().slice(0,10), revenue: 0, profit: 0 });
+      days.push({ day: d.toISOString().slice(0, 10), revenue: 0, profit: 0 });
+    }
+    const months: { month: string; revenue: number; profit: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(sixMonthsAgo); d.setMonth(d.getMonth() + i);
+      months.push({ month: d.toISOString().slice(0, 7), revenue: 0, profit: 0 });
     }
     const productAgg = new Map<string, { name: string; photo_url: string | null; revenue: number; profit: number }>();
     let pending_orders = 0;
 
     for (const o of orders) {
       if (o.status === "new" || o.status === "processing") pending_orders++;
-      const day = String(o.ordered_at).slice(0,10);
+      const day = String(o.ordered_at).slice(0, 10);
+      const month = String(o.ordered_at).slice(0, 7);
       const items = (o.order_items ?? []) as any[];
       let orderRev = 0, orderProfit = 0;
       for (const it of items) {
@@ -100,20 +105,21 @@ export const getDashboardSnapshot = createServerFn({ method: "GET" })
         const prof = rev - Number(it.unit_cost_snapshot) * Number(it.qty);
         orderRev += rev; orderProfit += prof;
         const pname = it.products?.name ?? "Unknown";
-        const key = pname;
-        const agg = productAgg.get(key) ?? { name: pname, photo_url: null, revenue: 0, profit: 0 };
+        const agg = productAgg.get(pname) ?? { name: pname, photo_url: null, revenue: 0, profit: 0 };
         agg.revenue += rev; agg.profit += prof;
-        productAgg.set(key, agg);
+        productAgg.set(pname, agg);
       }
-      const slot = days.find(x => x.day === day);
-      if (slot) { slot.revenue += orderRev; slot.profit += orderProfit; }
-      if (day === today.toISOString().slice(0,10)) {
+      const dSlot = days.find((x) => x.day === day);
+      if (dSlot) { dSlot.revenue += orderRev; dSlot.profit += orderProfit; }
+      const mSlot = months.find((x) => x.month === month);
+      if (mSlot) { mSlot.revenue += orderRev; mSlot.profit += orderProfit; }
+      if (day === today.toISOString().slice(0, 10)) {
         today_sales += orderRev;
         today_profit += orderProfit;
       }
     }
 
-    // Top product (highest revenue last 30d)
+    // Top product
     let top_product: DashboardSnapshot["top_product"] = null;
     let topRev = -1;
     for (const [, v] of productAgg) {
@@ -133,7 +139,6 @@ export const getDashboardSnapshot = createServerFn({ method: "GET" })
       if (prod) { top_product.id = prod.id; top_product.photo_url = prod.photo_url; }
     }
 
-    const low_stock_count = materials.filter(m => Number(m.current_qty) <= Number(m.low_threshold) && Number(m.low_threshold) > 0).length;
 
     const profit_30d = days.reduce((s, d) => s + d.profit, 0);
     const reinvested_30d = expenses.filter(e => e.is_reinvestment).reduce((s, e) => s + Number(e.amount), 0);
@@ -167,8 +172,9 @@ export const getDashboardSnapshot = createServerFn({ method: "GET" })
       display_name: profileRes.data?.display_name ?? null,
       currency: profileRes.data?.currency ?? "৳",
       today_sales, today_profit,
-      pending_orders, low_stock_count,
+      pending_orders,
       revenue_7d: days,
+      revenue_6m: months,
       top_product,
       reinvestment: {
         profit_30d,

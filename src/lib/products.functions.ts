@@ -19,7 +19,6 @@ const ProductUpsertSchema = z.object({
   labor_cost: z.number().min(0).default(0),
   overhead_cost: z.number().min(0).default(0),
   recipe: z.array(RecipeItemSchema).default([]),
-  overhead_expense_ids: z.array(z.string().uuid()).default([]),
 });
 
 export type ProductWithCost = {
@@ -45,21 +44,6 @@ function recipeRowCost(row: any): number {
   return Number(row.qty_per_unit) * per;
 }
 
-async function computeAmortizedOverhead(
-  supabase: any,
-  productId: string,
-): Promise<number> {
-  const { data } = await supabase
-    .from("product_overheads")
-    .select("expenses(amount, uses_total)")
-    .eq("product_id", productId);
-  return (data ?? []).reduce((s: number, r: any) => {
-    const amt = Number(r.expenses?.amount ?? 0);
-    const uses = Math.max(1, Number(r.expenses?.uses_total ?? 50));
-    return s + amt / uses;
-  }, 0);
-}
-
 export const listProducts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(() => ({}))
@@ -80,16 +64,6 @@ export const listProducts = createServerFn({ method: "GET" })
       costByProduct.set(r.product_id, (costByProduct.get(r.product_id) ?? 0) + recipeRowCost(r));
     }
 
-    const { data: overheads } = await supabase
-      .from("product_overheads")
-      .select("product_id, expenses(amount, uses_total)");
-    const ohByProduct = new Map<string, number>();
-    for (const r of (overheads ?? []) as any[]) {
-      const amt = Number(r.expenses?.amount ?? 0);
-      const uses = Math.max(1, Number(r.expenses?.uses_total ?? 50));
-      ohByProduct.set(r.product_id, (ohByProduct.get(r.product_id) ?? 0) + amt / uses);
-    }
-
     const { data: items } = await supabase
       .from("order_items")
       .select("product_id, qty, unit_price");
@@ -105,8 +79,7 @@ export const listProducts = createServerFn({ method: "GET" })
       const unit_cost =
         (costByProduct.get(p.id) ?? 0) +
         Number(p.labor_cost) +
-        Number(p.overhead_cost) +
-        (ohByProduct.get(p.id) ?? 0);
+        Number(p.overhead_cost);
       const profit = Number(p.selling_price) - unit_cost;
       const margin = p.selling_price > 0 ? (profit / Number(p.selling_price)) * 100 : 0;
       const sold = soldByProduct.get(p.id) ?? { units: 0, revenue: 0 };
@@ -126,18 +99,12 @@ export const getProduct = createServerFn({ method: "GET" })
       .from("product_recipe_items")
       .select("id, qty_per_unit, material_id, material_name, unit_cost_override, materials(name, unit, avg_unit_cost)")
       .eq("product_id", data.id);
-    const { data: ohRows } = await supabase
-      .from("product_overheads")
-      .select("expense_id")
-      .eq("product_id", data.id);
 
     const materialsCost = (items ?? []).reduce((s, r: any) => s + recipeRowCost(r), 0);
-    const amortizedOverhead = await computeAmortizedOverhead(supabase, data.id);
     const unit_cost =
       materialsCost +
       Number(product.labor_cost ?? 0) +
-      Number(product.overhead_cost ?? 0) +
-      amortizedOverhead;
+      Number(product.overhead_cost ?? 0);
     const profit = Number(product.selling_price) - unit_cost;
     const margin = product.selling_price > 0 ? (profit / Number(product.selling_price)) * 100 : 0;
     return {
@@ -145,9 +112,7 @@ export const getProduct = createServerFn({ method: "GET" })
       unit_cost,
       profit,
       margin,
-      amortized_overhead: amortizedOverhead,
       recipe: items ?? [],
-      overhead_expense_ids: (ohRows ?? []).map((r: any) => r.expense_id),
     };
   });
 
@@ -190,17 +155,6 @@ export const upsertProduct = createServerFn({ method: "POST" })
         qty_per_unit: r.qty_per_unit,
       }));
       const { error } = await supabase.from("product_recipe_items").insert(rows);
-      if (error) throw new Error(error.message);
-    }
-
-    await supabase.from("product_overheads").delete().eq("product_id", productId);
-    if (data.overhead_expense_ids.length) {
-      const rows = data.overhead_expense_ids.map((expense_id) => ({
-        user_id: userId,
-        product_id: productId!,
-        expense_id,
-      }));
-      const { error } = await supabase.from("product_overheads").insert(rows);
       if (error) throw new Error(error.message);
     }
 

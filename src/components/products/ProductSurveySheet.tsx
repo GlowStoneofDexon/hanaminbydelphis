@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { listOverheadExpenses } from "@/lib/finance.functions";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { formatBDT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type SurveyResult = {
@@ -15,9 +11,9 @@ export type SurveyResult = {
   selling_price: number;
   current_stock: number;
   labor_cost: number;
+  overhead_cost: number;
   category: string;
   recipe: { material_name: string; unit_cost_override: number; qty_per_unit: number }[];
-  overhead_expense_ids: string[];
 };
 
 type RecipeRow = { material_name: string; cost: string };
@@ -27,9 +23,9 @@ const STEPS = [
   { key: "price", label: "Selling price (৳)", required: true, placeholder: "250" },
   { key: "stock", label: "Stock", required: false, placeholder: "15" },
   { key: "labor", label: "Labor cost (৳)", required: false, placeholder: "30" },
+  { key: "overhead", label: "Overhead cost (৳)", required: false, placeholder: "20" },
   { key: "category", label: "Category", required: false, placeholder: "Earrings" },
   { key: "recipe", label: "Materials", required: false },
-  { key: "overheads", label: "Overheads used", required: false },
 ] as const;
 
 export function ProductSurveySheet({
@@ -46,21 +42,14 @@ export function ProductSurveySheet({
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [labor, setLabor] = useState("");
+  const [overhead, setOverhead] = useState("");
   const [category, setCategory] = useState("");
   const [recipe, setRecipe] = useState<RecipeRow[]>([]);
-  const [overheadIds, setOverheadIds] = useState<string[]>([]);
-
-  const ohFn = useServerFn(listOverheadExpenses);
-  const overheads = useQuery({
-    queryKey: ["overhead-expenses"],
-    queryFn: () => ohFn(),
-    enabled: open,
-  });
 
   useEffect(() => {
     if (!open) {
       setStep(0); setName(""); setPrice(""); setStock(""); setLabor("");
-      setCategory(""); setRecipe([]); setOverheadIds([]);
+      setOverhead(""); setCategory(""); setRecipe([]);
     }
   }, [open]);
 
@@ -79,6 +68,7 @@ export function ProductSurveySheet({
       selling_price: Number(price || 0),
       current_stock: Number(stock || 0),
       labor_cost: Number(labor || 0),
+      overhead_cost: Number(overhead || 0),
       category: category.trim(),
       recipe: recipe
         .filter((r) => r.material_name.trim())
@@ -87,7 +77,6 @@ export function ProductSurveySheet({
           unit_cost_override: Number(r.cost || 0),
           qty_per_unit: 1,
         })),
-      overhead_expense_ids: overheadIds,
     });
   };
 
@@ -102,7 +91,6 @@ export function ProductSurveySheet({
           </SheetDescription>
         </SheetHeader>
 
-        {/* progress dots */}
         <div className="mt-3 flex gap-1.5">
           {STEPS.map((_, i) => (
             <span
@@ -119,58 +107,35 @@ export function ProductSurveySheet({
           <Label className="text-sm font-medium">{cur.label}</Label>
 
           {cur.key === "name" && (
-            <Input
-              autoFocus
-              className="mt-2 h-12 rounded-2xl text-base"
-              placeholder={cur.placeholder}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && canNext && setStep((s) => s + 1)}
-            />
+            <Input autoFocus className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+              value={name} onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canNext && setStep((s) => s + 1)} />
           )}
-
           {cur.key === "price" && (
-            <Input
-              autoFocus
-              inputMode="decimal"
-              className="mt-2 h-12 rounded-2xl text-base"
-              placeholder={cur.placeholder}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && canNext && setStep((s) => s + 1)}
-            />
+            <Input autoFocus inputMode="decimal" className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+              value={price} onChange={(e) => setPrice(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canNext && setStep((s) => s + 1)} />
           )}
-
           {cur.key === "stock" && (
-            <Input
-              autoFocus
-              inputMode="numeric"
-              className="mt-2 h-12 rounded-2xl text-base"
-              placeholder={cur.placeholder}
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-            />
+            <Input autoFocus inputMode="numeric" className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+              value={stock} onChange={(e) => setStock(e.target.value)} />
           )}
-
           {cur.key === "labor" && (
-            <Input
-              autoFocus
-              inputMode="decimal"
-              className="mt-2 h-12 rounded-2xl text-base"
-              placeholder={cur.placeholder}
-              value={labor}
-              onChange={(e) => setLabor(e.target.value)}
-            />
+            <Input autoFocus inputMode="decimal" className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+              value={labor} onChange={(e) => setLabor(e.target.value)} />
           )}
-
+          {cur.key === "overhead" && (
+            <>
+              <Input autoFocus inputMode="decimal" className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+                value={overhead} onChange={(e) => setOverhead(e.target.value)} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Packaging, electricity, sticker, etc. — per unit.
+              </p>
+            </>
+          )}
           {cur.key === "category" && (
-            <Input
-              autoFocus
-              className="mt-2 h-12 rounded-2xl text-base"
-              placeholder={cur.placeholder}
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            />
+            <Input autoFocus className="mt-2 h-12 rounded-2xl text-base" placeholder={cur.placeholder}
+              value={category} onChange={(e) => setCategory(e.target.value)} />
           )}
 
           {cur.key === "recipe" && (
@@ -180,105 +145,47 @@ export function ProductSurveySheet({
               </p>
               {recipe.map((r, i) => (
                 <div key={i} className="grid grid-cols-[1fr_5.5rem_2rem] items-center gap-2">
-                  <Input
-                    className="h-10 rounded-xl"
-                    placeholder="Resin"
-                    value={r.material_name}
-                    onChange={(e) =>
-                      setRecipe((rs) => rs.map((x, j) => (j === i ? { ...x, material_name: e.target.value } : x)))
-                    }
-                  />
-                  <Input
-                    className="h-10 rounded-xl"
-                    inputMode="decimal"
-                    placeholder="৳ 0"
-                    value={r.cost}
-                    onChange={(e) =>
-                      setRecipe((rs) => rs.map((x, j) => (j === i ? { ...x, cost: e.target.value } : x)))
-                    }
-                  />
-                  <button
-                    onClick={() => setRecipe((rs) => rs.filter((_, j) => j !== i))}
-                    className="grid h-10 w-10 place-items-center rounded-xl text-muted-foreground hover:bg-muted"
-                  >
+                  <Input className="h-10 rounded-xl" placeholder="Resin" value={r.material_name}
+                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, material_name: e.target.value } : x))} />
+                  <Input className="h-10 rounded-xl" inputMode="decimal" placeholder="৳ 0" value={r.cost}
+                    onChange={(e) => setRecipe((rs) => rs.map((x, j) => j === i ? { ...x, cost: e.target.value } : x))} />
+                  <button onClick={() => setRecipe((rs) => rs.filter((_, j) => j !== i))}
+                    className="grid h-10 w-10 place-items-center rounded-xl text-muted-foreground hover:bg-muted">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full"
-                onClick={() => setRecipe((rs) => [...rs, { material_name: "", cost: "" }])}
-              >
+              <Button variant="secondary" size="sm" className="rounded-full"
+                onClick={() => setRecipe((rs) => [...rs, { material_name: "", cost: "" }])}>
                 <Plus className="h-4 w-4" /> Add material
               </Button>
             </div>
           )}
-
-          {cur.key === "overheads" && (
-            <div className="mt-2 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Each overhead is split across {`{N}`} uses (set in Finance, default 50).
-              </p>
-              {(overheads.data ?? []).length === 0 && (
-                <p className="rounded-2xl bg-muted/40 p-3 text-center text-xs text-muted-foreground">
-                  No overhead expenses yet. Mark an expense as "Use as overhead" in Finance to see it here.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {(overheads.data ?? []).map((o: any) => {
-                  const on = overheadIds.includes(o.id);
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() =>
-                        setOverheadIds((ids) =>
-                          on ? ids.filter((x) => x !== o.id) : [...ids, o.id],
-                        )
-                      }
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs transition",
-                        on
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-card text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {on && <Check className="mr-1 inline h-3 w-3" />}
-                      {o.label} · {formatBDT(o.per_unit)}/unit
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="mt-6 flex items-center gap-2">
-          <Button
-            variant="ghost"
-            className="rounded-full"
-            disabled={step === 0}
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-          >
+        <div className="mt-6 flex items-center justify-between gap-2">
+          <Button variant="ghost" className="rounded-full" disabled={step === 0}
+            onClick={() => setStep((s) => Math.max(0, s - 1))}>
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          {!cur.required && !isLast && (
-            <Button
-              variant="ghost"
-              className="rounded-full text-muted-foreground"
-              onClick={() => setStep((s) => s + 1)}
-            >
-              Skip
-            </Button>
-          )}
-          <Button
-            className="ml-auto h-11 rounded-2xl px-5"
-            disabled={!canNext}
-            onClick={() => (isLast ? finish() : setStep((s) => s + 1))}
-          >
-            {isLast ? "Continue" : "Next"} <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            {!cur.required && !isLast && (
+              <Button variant="secondary" className="rounded-full"
+                onClick={() => setStep((s) => s + 1)}>
+                Skip
+              </Button>
+            )}
+            {isLast ? (
+              <Button className="rounded-full" onClick={finish} disabled={!canNext}>
+                <Check className="h-4 w-4" /> Continue
+              </Button>
+            ) : (
+              <Button className="rounded-full" disabled={!canNext}
+                onClick={() => setStep((s) => s + 1)}>
+                Next <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -8,8 +8,6 @@ const ExpenseSchema = z.object({
   amount: z.number().min(0),
   description: z.string().optional().nullable(),
   is_reinvestment: z.boolean().default(false),
-  is_overhead: z.boolean().default(false),
-  uses_total: z.number().int().min(1).default(50),
 });
 
 const CategorySchema = z.object({
@@ -121,30 +119,10 @@ export const createExpense = createServerFn({ method: "POST" })
         amount: data.amount,
         description: data.description ?? null,
         is_reinvestment: data.is_reinvestment,
-        is_overhead: data.is_overhead,
-        uses_total: data.uses_total,
       })
       .select("id").single();
     if (error) throw new Error(error.message);
     return { id: ins!.id };
-  });
-
-export const listOverheadExpenses = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(() => ({}))
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from("expenses")
-      .select("id, description, amount, uses_total, expense_categories(name)")
-      .eq("is_overhead", true)
-      .order("spent_at", { ascending: false });
-    return (data ?? []).map((e: any) => ({
-      id: e.id,
-      label: e.description ?? e.expense_categories?.name ?? "Expense",
-      amount: Number(e.amount),
-      uses_total: Number(e.uses_total),
-      per_unit: Number(e.amount) / Math.max(1, Number(e.uses_total)),
-    }));
   });
 
 export const deleteExpense = createServerFn({ method: "POST" })

@@ -16,7 +16,7 @@ function ReinvestmentPage() {
   const total = data.reduce((s, d) => s + d.amount, 0);
 
   return (
-    <AppShell title="Reinvestment" subtitle="Money flow">
+    <AppShell hideNav title="Reinvestment" subtitle="Money flow">
       <div className="card-soft bg-primary p-5 text-primary-foreground">
         <p className="text-xs uppercase tracking-wider opacity-80">Reinvested last 90 days</p>
         <p className="num mt-1 text-3xl font-black">{formatBDT(total)}</p>

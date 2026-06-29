@@ -15,7 +15,7 @@ import {
 import { formatBDT, fmtDate } from "@/lib/format";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+
 
 export const Route = createFileRoute("/_authenticated/finance")({
   head: () => ({ meta: [{ title: "Finance — Hanami" }] }),
@@ -44,30 +44,16 @@ function FinancePage() {
         <Card label="Reinvested" value={formatBDT(data.reinvested)} />
       </div>
 
-      <section className="mt-3 card-soft p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-base font-bold">Cash flow</h2>
-          <Link to="/finance/reinvestment" className="chip text-primary">
-            Reinvestment <ArrowRight className="h-3 w-3" />
-          </Link>
+      <section className="mt-3 card-soft p-4 flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-base font-bold">Reinvestment timeline</h2>
+          <p className="text-xs text-muted-foreground">See how profit is being reinvested.</p>
         </div>
-        <div className="mt-3 h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.series}>
-              <defs>
-                <linearGradient id="rev2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" hide />
-              <Tooltip formatter={(v: number) => formatBDT(v)} labelFormatter={(d) => fmtDate(d as string)}
-                contentStyle={{ borderRadius: 14, border: "1px solid var(--color-border)" }} />
-              <Area type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2} fill="url(#rev2)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <Link to="/finance/reinvestment" className="chip text-primary">
+          Open <ArrowRight className="h-3 w-3" />
+        </Link>
       </section>
+
 
       <section className="mt-3 card-soft p-4">
         <h2 className="mb-2 font-display text-base font-bold">Wallets</h2>
@@ -142,8 +128,6 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [isReinvest, setIsReinvest] = useState(false);
-  const [isOverhead, setIsOverhead] = useState(false);
-  const [usesTotal, setUsesTotal] = useState("50");
   const mutate = useMutation({
     mutationFn: () => create({
       data: {
@@ -151,14 +135,11 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
         description: description || null,
         category_id: categoryId || undefined,
         is_reinvestment: isReinvest,
-        is_overhead: isOverhead,
-        uses_total: Math.max(1, Number(usesTotal || 50)),
       },
     }),
     onSuccess: () => {
       toast.success("Expense added"); qc.invalidateQueries(); onOpenChange(false);
       setAmount(""); setDescription(""); setCategoryId(""); setIsReinvest(false);
-      setIsOverhead(false); setUsesTotal("50");
     },
   });
 
@@ -167,12 +148,12 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       <SheetContent side="bottom" className="rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="font-display">New expense</SheetTitle>
-          <SheetDescription>Mark as overhead to auto-spread across products.</SheetDescription>
+          <SheetDescription>Log a business expense.</SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-3">
           <div className="space-y-1.5">
             <Label>Amount (৳)</Label>
-            <Input type="number" inputMode="decimal" value={amount} placeholder="500" onChange={(e) => setAmount(e.target.value)} />
+            <Input inputMode="decimal" value={amount} placeholder="500" onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
@@ -194,27 +175,6 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             <span className="text-sm">Reinvestment (counts toward growth)</span>
             <Switch checked={isReinvest} onCheckedChange={setIsReinvest} />
           </label>
-          <label className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 px-3 py-2.5">
-            <span className="text-sm">Use as product overhead</span>
-            <Switch checked={isOverhead} onCheckedChange={setIsOverhead} />
-          </label>
-          {isOverhead && (
-            <div className="space-y-1.5">
-              <Label>Spread over how many uses?</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                value={usesTotal}
-                placeholder="50"
-                onChange={(e) => setUsesTotal(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Per-unit cost ≈ {Number(amount || 0) > 0 && Number(usesTotal || 0) > 0
-                  ? formatBDT(Number(amount) / Number(usesTotal))
-                  : "—"}
-              </p>
-            </div>
-          )}
           <Button className="h-11 w-full rounded-2xl" disabled={!Number(amount) || mutate.isPending} onClick={() => mutate.mutate()}>
             {mutate.isPending ? "Saving…" : "Add expense"}
           </Button>
@@ -223,3 +183,4 @@ function ExpenseSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     </Sheet>
   );
 }
+

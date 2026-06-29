@@ -62,7 +62,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#f8e8ee" },
+      { name: "theme-color", content: "#fdf7f9" },
       { title: "Hanami — Resin Craft Business Tracker" },
       { name: "description", content: "Track sales, costs, inventory and profit for your handmade resin business." },
       { property: "og:title", content: "Hanami — Resin Craft Business Tracker" },
@@ -86,7 +86,7 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head><HeadContent /></head>
-      <body>
+      <body className="bg-background">
         {children}
         <Scripts />
       </body>

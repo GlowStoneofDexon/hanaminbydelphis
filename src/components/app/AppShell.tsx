@@ -3,12 +3,12 @@ import { BottomNav } from "./BottomNav";
 import { RecordSaleSheet } from "@/components/sales/RecordSaleSheet";
 
 export function AppShell({
-  title, subtitle, right, children,
-}: { title?: string; subtitle?: string; right?: ReactNode; children: ReactNode }) {
+  title, subtitle, right, children, hideNav,
+}: { title?: string; subtitle?: string; right?: ReactNode; children: ReactNode; hideNav?: boolean }) {
   const [recordOpen, setRecordOpen] = useState(false);
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-md px-4 pb-32 pt-5">
+    <div className="min-h-dvh bg-background text-foreground">
+      <div className={`mx-auto w-full max-w-md px-4 pt-5 ${hideNav ? "pb-8" : "pb-32"}`}>
         {(title || right) && (
           <header className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
             <div className="min-w-0">
@@ -26,8 +26,12 @@ export function AppShell({
         )}
         {children}
       </div>
-      <BottomNav onFab={() => setRecordOpen(true)} />
-      <RecordSaleSheet open={recordOpen} onOpenChange={setRecordOpen} />
+      {!hideNav && (
+        <>
+          <BottomNav onFab={() => setRecordOpen(true)} />
+          <RecordSaleSheet open={recordOpen} onOpenChange={setRecordOpen} />
+        </>
+      )}
     </div>
   );
 }

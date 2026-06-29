@@ -8,12 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { listProducts, upsertProduct, deleteProduct, getProduct, type ProductWithCost } from "@/lib/products.functions";
-import { listOverheadExpenses } from "@/lib/finance.functions";
 import { formatBDT } from "@/lib/format";
-import { Plus, Package, Trash2, Check } from "lucide-react";
+import { Plus, Package, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductSurveySheet, type SurveyResult } from "@/components/products/ProductSurveySheet";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Products — Hanami" }] }),
@@ -27,8 +25,8 @@ type Prefill = {
   selling_price?: string;
   current_stock?: string;
   labor_cost?: string;
+  overhead_cost?: string;
   recipe?: RecipeRow[];
-  overhead_expense_ids?: string[];
 };
 
 function ProductsPage() {
@@ -48,12 +46,12 @@ function ProductsPage() {
       selling_price: r.selling_price ? String(r.selling_price) : "",
       current_stock: r.current_stock ? String(r.current_stock) : "",
       labor_cost: r.labor_cost ? String(r.labor_cost) : "",
+      overhead_cost: r.overhead_cost ? String(r.overhead_cost) : "",
       recipe: r.recipe.map((m) => ({
         material_name: m.material_name,
         cost: String(m.unit_cost_override),
         qty: String(m.qty_per_unit),
       })),
-      overhead_expense_ids: r.overhead_expense_ids,
     });
     setOpen(true);
   };
@@ -150,9 +148,6 @@ function ProductSheet({
   const upsert = useServerFn(upsertProduct);
   const del = useServerFn(deleteProduct);
   const getFn = useServerFn(getProduct);
-  const ohFn = useServerFn(listOverheadExpenses);
-
-  const overheads = useQuery({ queryKey: ["overhead-expenses"], queryFn: () => ohFn(), enabled: open });
 
   const [name, setName] = useState(prefill?.name ?? "");
   const [category, setCategory] = useState(prefill?.category ?? "");
@@ -160,9 +155,8 @@ function ProductSheet({
   const [price, setPrice] = useState<string>(prefill?.selling_price ?? "");
   const [stock, setStock] = useState<string>(prefill?.current_stock ?? "");
   const [labor, setLabor] = useState<string>(prefill?.labor_cost ?? "");
-  const [overhead, setOverhead] = useState<string>("");
+  const [overhead, setOverhead] = useState<string>(prefill?.overhead_cost ?? "");
   const [recipe, setRecipe] = useState<RecipeRow[]>(prefill?.recipe ?? []);
-  const [overheadIds, setOverheadIds] = useState<string[]>(prefill?.overhead_expense_ids ?? []);
 
   // load existing product
   useQuery({
@@ -185,7 +179,6 @@ function ProductSheet({
             qty: String(r.qty_per_unit ?? 1),
           })),
         );
-        setOverheadIds(data.overhead_expense_ids ?? []);
       }
       return data;
     },
@@ -193,16 +186,11 @@ function ProductSheet({
     staleTime: 0,
   });
 
-  // amortized overhead preview
-  const amortized = overheadIds.reduce((s, id) => {
-    const o = overheads.data?.find((x: any) => x.id === id);
-    return s + Number(o?.per_unit ?? 0);
-  }, 0);
   const matCost = recipe.reduce(
     (s, r) => s + Number(r.cost || 0) * Number(r.qty || 1),
     0,
   );
-  const unitCost = matCost + Number(labor || 0) + Number(overhead || 0) + amortized;
+  const unitCost = matCost + Number(labor || 0) + Number(overhead || 0);
   const profit = Number(price || 0) - unitCost;
   const margin = Number(price || 0) > 0 ? (profit / Number(price)) * 100 : 0;
 
@@ -225,7 +213,6 @@ function ProductSheet({
               unit_cost_override: Number(r.cost || 0),
               qty_per_unit: Number(r.qty || 1),
             })),
-          overhead_expense_ids: overheadIds,
         },
       }),
     onSuccess: () => {
@@ -324,34 +311,19 @@ function ProductSheet({
           </div>
 
           <div>
-            <Label className="text-xs">Overheads used (auto-spread)</Label>
-            {(overheads.data ?? []).length === 0 ? (
-              <p className="mt-1 rounded-2xl bg-muted/40 p-2.5 text-center text-xs text-muted-foreground">
-                Mark expenses as overhead in Finance to use them here.
-              </p>
-            ) : (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {(overheads.data ?? []).map((o: any) => {
-                  const on = overheadIds.includes(o.id);
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() =>
-                        setOverheadIds((ids) => on ? ids.filter((x) => x !== o.id) : [...ids, o.id])
-                      }
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs transition",
-                        on ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground",
-                      )}
-                    >
-                      {on && <Check className="mr-1 inline h-3 w-3" />}
-                      {o.label} · {formatBDT(o.per_unit)}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <Label className="text-xs">Overhead cost (৳)</Label>
+            <Input
+              inputMode="decimal"
+              className="mt-1 h-10 rounded-2xl"
+              placeholder="0"
+              value={overhead}
+              onChange={(e) => setOverhead(e.target.value)}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Packaging, electricity, stickers, etc. per unit.
+            </p>
           </div>
+
 
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-secondary/60 p-3">
             <Stat label="Unit cost" value={formatBDT(unitCost)} />
