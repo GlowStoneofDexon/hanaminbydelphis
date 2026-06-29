@@ -190,7 +190,7 @@ function ProductSheet({
     (s, r) => s + Number(r.cost || 0) * Number(r.qty || 1),
     0,
   );
-  const unitCost = matCost + Number(labor || 0) + Number(overhead || 0) + amortized;
+  const unitCost = matCost + Number(labor || 0) + Number(overhead || 0);
   const profit = Number(price || 0) - unitCost;
   const margin = Number(price || 0) > 0 ? (profit / Number(price)) * 100 : 0;
 
@@ -213,7 +213,6 @@ function ProductSheet({
               unit_cost_override: Number(r.cost || 0),
               qty_per_unit: Number(r.qty || 1),
             })),
-          overhead_expense_ids: overheadIds,
         },
       }),
     onSuccess: () => {
