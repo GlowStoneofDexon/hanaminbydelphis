@@ -12,10 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   listMaterials, upsertMaterial, deleteMaterial, recordPurchase, listSuppliers,
 } from "@/lib/inventory.functions";
-import { formatBDT, formatNum, fmtDate } from "@/lib/format";
-import { Plus, AlertTriangle, Trash2, PackagePlus } from "lucide-react";
+import { formatBDT, formatNum } from "@/lib/format";
+import { Plus, Trash2, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
-import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory — Hanami" }] }),
@@ -32,6 +31,7 @@ function InventoryPage() {
 
   return (
     <AppShell
+      hideNav
       title="Inventory"
       subtitle="Raw materials"
       right={
@@ -44,35 +44,27 @@ function InventoryPage() {
         <EmptyMaterials onAdd={() => { setEditing(null); setEditOpen(true); }} />
       ) : (
         <div className="grid gap-3">
-          {data.map((m: any) => {
-            const low = Number(m.low_threshold) > 0 && Number(m.current_qty) <= Number(m.low_threshold);
-            const pct = m.low_threshold > 0
-              ? Math.min(100, Math.round((Number(m.current_qty) / (Number(m.low_threshold) * 2)) * 100))
-              : 100;
-            return (
-              <div key={m.id} className="card-soft p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <button onClick={() => { setEditing(m); setEditOpen(true); }} className="min-w-0 flex-1 text-left">
-                    <p className="truncate font-display text-base font-bold">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Avg cost {formatBDT(m.avg_unit_cost)}/{m.unit} · threshold {formatNum(m.low_threshold)}{m.unit}
-                    </p>
-                  </button>
-                  <div className="text-right">
-                    <p className="num text-xl font-bold">{formatNum(m.current_qty)}<span className="text-sm font-medium text-muted-foreground"> {m.unit}</span></p>
-                    {low && <span className="chip bg-warn/15 text-warn"><AlertTriangle className="h-3 w-3" /> Low</span>}
-                  </div>
-                </div>
-                <Progress value={pct} className="mt-3 h-1.5" />
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="secondary" className="rounded-full"
-                    onClick={() => { setPurchaseMaterial(m); setPurchaseOpen(true); }}>
-                    <PackagePlus className="h-3.5 w-3.5" /> Restock
-                  </Button>
+          {data.map((m: any) => (
+            <div key={m.id} className="card-soft p-4">
+              <div className="flex items-center justify-between gap-3">
+                <button onClick={() => { setEditing(m); setEditOpen(true); }} className="min-w-0 flex-1 text-left">
+                  <p className="truncate font-display text-base font-bold">{m.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Avg cost {formatBDT(m.avg_unit_cost)}/{m.unit}
+                  </p>
+                </button>
+                <div className="text-right">
+                  <p className="num text-xl font-bold">{formatNum(m.current_qty)}<span className="text-sm font-medium text-muted-foreground"> {m.unit}</span></p>
                 </div>
               </div>
-            );
-          })}
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" variant="secondary" className="rounded-full"
+                  onClick={() => { setPurchaseMaterial(m); setPurchaseOpen(true); }}>
+                  <PackagePlus className="h-3.5 w-3.5" /> Restock
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
