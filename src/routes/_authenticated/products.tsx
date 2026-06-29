@@ -8,12 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { listProducts, upsertProduct, deleteProduct, getProduct, type ProductWithCost } from "@/lib/products.functions";
-import { listOverheadExpenses } from "@/lib/finance.functions";
 import { formatBDT } from "@/lib/format";
-import { Plus, Package, Trash2, Check } from "lucide-react";
+import { Plus, Package, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductSurveySheet, type SurveyResult } from "@/components/products/ProductSurveySheet";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Products — Hanami" }] }),
@@ -27,8 +25,8 @@ type Prefill = {
   selling_price?: string;
   current_stock?: string;
   labor_cost?: string;
+  overhead_cost?: string;
   recipe?: RecipeRow[];
-  overhead_expense_ids?: string[];
 };
 
 function ProductsPage() {
@@ -48,12 +46,12 @@ function ProductsPage() {
       selling_price: r.selling_price ? String(r.selling_price) : "",
       current_stock: r.current_stock ? String(r.current_stock) : "",
       labor_cost: r.labor_cost ? String(r.labor_cost) : "",
+      overhead_cost: r.overhead_cost ? String(r.overhead_cost) : "",
       recipe: r.recipe.map((m) => ({
         material_name: m.material_name,
         cost: String(m.unit_cost_override),
         qty: String(m.qty_per_unit),
       })),
-      overhead_expense_ids: r.overhead_expense_ids,
     });
     setOpen(true);
   };
