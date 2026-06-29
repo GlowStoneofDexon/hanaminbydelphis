@@ -311,34 +311,19 @@ function ProductSheet({
           </div>
 
           <div>
-            <Label className="text-xs">Overheads used (auto-spread)</Label>
-            {(overheads.data ?? []).length === 0 ? (
-              <p className="mt-1 rounded-2xl bg-muted/40 p-2.5 text-center text-xs text-muted-foreground">
-                Mark expenses as overhead in Finance to use them here.
-              </p>
-            ) : (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {(overheads.data ?? []).map((o: any) => {
-                  const on = overheadIds.includes(o.id);
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() =>
-                        setOverheadIds((ids) => on ? ids.filter((x) => x !== o.id) : [...ids, o.id])
-                      }
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs transition",
-                        on ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground",
-                      )}
-                    >
-                      {on && <Check className="mr-1 inline h-3 w-3" />}
-                      {o.label} · {formatBDT(o.per_unit)}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <Label className="text-xs">Overhead cost (৳)</Label>
+            <Input
+              inputMode="decimal"
+              className="mt-1 h-10 rounded-2xl"
+              placeholder="0"
+              value={overhead}
+              onChange={(e) => setOverhead(e.target.value)}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Packaging, electricity, stickers, etc. per unit.
+            </p>
           </div>
+
 
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-secondary/60 p-3">
             <Stat label="Unit cost" value={formatBDT(unitCost)} />
