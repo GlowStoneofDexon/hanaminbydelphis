@@ -6,7 +6,6 @@ const MaterialSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   unit: z.enum(["g", "ml", "pcs"]),
-  low_threshold: z.number().min(0).default(0),
 });
 
 const PurchaseSchema = z.object({
@@ -40,7 +39,8 @@ export const upsertMaterial = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const row = {
       user_id: context.userId,
-      name: data.name, unit: data.unit, low_threshold: data.low_threshold,
+      name: data.name,
+      unit: data.unit,
     };
     if (data.id) {
       await context.supabase.from("materials").update(row).eq("id", data.id);
@@ -78,7 +78,6 @@ export const recordPurchase = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     if (data.log_expense) {
-      // find or default expense category
       const { data: mat } = await context.supabase
         .from("materials").select("name").eq("id", data.material_id).single();
       const { data: cat } = await context.supabase
