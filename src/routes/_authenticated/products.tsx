@@ -148,9 +148,6 @@ function ProductSheet({
   const upsert = useServerFn(upsertProduct);
   const del = useServerFn(deleteProduct);
   const getFn = useServerFn(getProduct);
-  const ohFn = useServerFn(listOverheadExpenses);
-
-  const overheads = useQuery({ queryKey: ["overhead-expenses"], queryFn: () => ohFn(), enabled: open });
 
   const [name, setName] = useState(prefill?.name ?? "");
   const [category, setCategory] = useState(prefill?.category ?? "");
@@ -158,9 +155,8 @@ function ProductSheet({
   const [price, setPrice] = useState<string>(prefill?.selling_price ?? "");
   const [stock, setStock] = useState<string>(prefill?.current_stock ?? "");
   const [labor, setLabor] = useState<string>(prefill?.labor_cost ?? "");
-  const [overhead, setOverhead] = useState<string>("");
+  const [overhead, setOverhead] = useState<string>(prefill?.overhead_cost ?? "");
   const [recipe, setRecipe] = useState<RecipeRow[]>(prefill?.recipe ?? []);
-  const [overheadIds, setOverheadIds] = useState<string[]>(prefill?.overhead_expense_ids ?? []);
 
   // load existing product
   useQuery({
@@ -183,7 +179,6 @@ function ProductSheet({
             qty: String(r.qty_per_unit ?? 1),
           })),
         );
-        setOverheadIds(data.overhead_expense_ids ?? []);
       }
       return data;
     },
@@ -191,11 +186,6 @@ function ProductSheet({
     staleTime: 0,
   });
 
-  // amortized overhead preview
-  const amortized = overheadIds.reduce((s, id) => {
-    const o = overheads.data?.find((x: any) => x.id === id);
-    return s + Number(o?.per_unit ?? 0);
-  }, 0);
   const matCost = recipe.reduce(
     (s, r) => s + Number(r.cost || 0) * Number(r.qty || 1),
     0,
