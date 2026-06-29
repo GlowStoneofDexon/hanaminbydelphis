@@ -15,7 +15,7 @@ import {
 import { formatBDT, fmtDate } from "@/lib/format";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+
 
 export const Route = createFileRoute("/_authenticated/finance")({
   head: () => ({ meta: [{ title: "Finance — Hanami" }] }),
@@ -44,30 +44,16 @@ function FinancePage() {
         <Card label="Reinvested" value={formatBDT(data.reinvested)} />
       </div>
 
-      <section className="mt-3 card-soft p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-base font-bold">Cash flow</h2>
-          <Link to="/finance/reinvestment" className="chip text-primary">
-            Reinvestment <ArrowRight className="h-3 w-3" />
-          </Link>
+      <section className="mt-3 card-soft p-4 flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-base font-bold">Reinvestment timeline</h2>
+          <p className="text-xs text-muted-foreground">See how profit is being reinvested.</p>
         </div>
-        <div className="mt-3 h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.series}>
-              <defs>
-                <linearGradient id="rev2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" hide />
-              <Tooltip formatter={(v: number) => formatBDT(v)} labelFormatter={(d) => fmtDate(d as string)}
-                contentStyle={{ borderRadius: 14, border: "1px solid var(--color-border)" }} />
-              <Area type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2} fill="url(#rev2)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <Link to="/finance/reinvestment" className="chip text-primary">
+          Open <ArrowRight className="h-3 w-3" />
+        </Link>
       </section>
+
 
       <section className="mt-3 card-soft p-4">
         <h2 className="mb-2 font-display text-base font-bold">Wallets</h2>
