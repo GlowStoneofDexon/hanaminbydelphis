@@ -75,6 +75,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5473eefe-2200-4c78-9dd6-4b295bd6f662/id-preview-6f72c6eb--ac5cdff3-7a61-445e-a265-c2534904c5fc.lovable.app-1782270665231.png" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
+    scripts: [
+      { src: "https://www.googletagmanager.com/gtag/js?id=G-1369P6EE4C", async: true },
+      {
+        children:
+          "window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-1369P6EE4C');",
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
